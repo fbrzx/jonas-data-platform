@@ -1,0 +1,192 @@
+erDiagram
+    %% ============================================
+    %% JONAS DATA PLATFORM — Core Data Model
+    %% ============================================
+
+    %% === TENANCY & IDENTITY ===
+    tenant {
+        uuid id PK
+        text slug UK "url-safe identifier"
+        text name
+        jsonb config "feature flags, limits, quotas"
+        text storage_prefix "parquet path namespace"
+        timestamp created_at
+    }
+
+    user_account {
+        uuid id PK
+        text email UK
+        text display_name
+        timestamp created_at
+    }
+
+    tenant_membership {
+        uuid id PK
+        uuid tenant_id FK
+        uuid user_id FK
+        text role "owner|admin|engineer|analyst|viewer"
+        jsonb scope "optional namespace restrictions"
+        timestamp granted_at
+        uuid granted_by FK
+    }
+
+    tenant ||--o{ tenant_membership : "has members"
+    user_account ||--o{ tenant_membership : "belongs to"
+
+    %% === SCHEMA CATALOGUE ===
+    namespace {
+        uuid id PK
+        uuid tenant_id FK
+        text name "e.g. sales, marketing, ops"
+        text description
+        timestamp created_at
+        uuid created_by FK
+    }
+
+    entity {
+        uuid id PK
+        uuid namespace_id FK
+        text name "e.g. orders, customers"
+        text layer "bronze|silver|gold"
+        text storage_format "parquet|view|materialised"
+        text description
+        int version
+        jsonb meta "tags, SLA, freshness target"
+        timestamp created_at
+        uuid created_by FK
+    }
+
+    entity_field {
+        uuid id PK
+        uuid entity_id FK
+        text name
+        text data_type "string|int|float|bool|timestamp|json|array"
+        boolean nullable
+        boolean is_pii "drives masking policy"
+        text description
+        int ordinal
+        uuid created_by FK
+        timestamp created_at
+    }
+
+    entity_lineage {
+        uuid id PK
+        uuid source_entity_id FK
+        uuid target_entity_id FK
+        uuid transform_id FK "nullable"
+        text lineage_type "derived|aggregated|filtered|joined"
+    }
+
+    tenant ||--o{ namespace : contains
+    namespace ||--o{ entity : contains
+    entity ||--o{ entity_field : defines
+    entity ||--o{ entity_lineage : "is source"
+    entity ||--o{ entity_lineage : "is target"
+
+    %% === TRANSFORMS ===
+    transform {
+        uuid id PK
+        uuid tenant_id FK
+        text name
+        uuid source_entity_id FK
+        uuid target_entity_id FK
+        text transform_type "sql|python|dbt_ref"
+        text definition "SQL body or code"
+        text schedule "cron or null for event-driven"
+        text status "draft|active|paused|failed"
+        uuid created_by FK
+        uuid approved_by FK "nullable"
+        timestamp created_at
+        timestamp last_run_at
+    }
+
+    transform_run {
+        uuid id PK
+        uuid transform_id FK
+        text status "running|success|failed"
+        timestamp started_at
+        timestamp completed_at
+        bigint rows_produced
+        jsonb error_detail
+    }
+
+    transform ||--o{ entity_lineage : produces
+    transform ||--o{ transform_run : "execution log"
+    entity ||--o{ transform : "source of"
+    entity ||--o{ transform : "target of"
+
+    %% === INTEGRATIONS ===
+    integration_template {
+        uuid id PK
+        text name "e.g. Webhook Inbound, S3 Pull"
+        text direction "inbound|outbound"
+        text mode "realtime|batch"
+        jsonb config_schema "JSON Schema for user config"
+        text transform_template "default mapping SQL"
+        text description
+    }
+
+    integration {
+        uuid id PK
+        uuid tenant_id FK
+        uuid template_id FK "nullable"
+        text name
+        text direction "inbound|outbound"
+        text mode "realtime|batch"
+        text status "draft|active|paused|error"
+        jsonb source_config "connection, auth, endpoint"
+        jsonb sink_config "target entity, field mapping"
+        jsonb auth_config "encrypted creds ref"
+        text schedule "cron for batch"
+        uuid target_entity_id FK
+        uuid created_by FK
+        uuid approved_by FK "nullable"
+        timestamp created_at
+    }
+
+    integration_run {
+        uuid id PK
+        uuid integration_id FK
+        text status "running|success|partial|failed"
+        timestamp started_at
+        timestamp completed_at
+        bigint records_in
+        bigint records_out
+        bigint records_rejected
+        jsonb error_detail
+    }
+
+    tenant ||--o{ integration : owns
+    integration_template ||--o{ integration : "based on"
+    integration ||--o{ integration_run : "execution history"
+    entity ||--o{ integration : "lands into"
+
+    %% === PERMISSIONS ===
+    permission_grant {
+        uuid id PK
+        uuid tenant_id FK
+        text principal_type "role|user"
+        text principal_id "role name or user uuid"
+        text resource_type "namespace|entity|integration|transform"
+        uuid resource_id "null means all of type"
+        text action "read|write|create|delete|approve|execute"
+        timestamp granted_at
+        uuid granted_by FK
+    }
+
+    tenant ||--o{ permission_grant : governs
+
+    %% === AUDIT ===
+    audit_log {
+        uuid id PK
+        uuid tenant_id FK
+        uuid user_id FK "nullable for system"
+        text action
+        text resource_type
+        uuid resource_id
+        jsonb detail "before/after snapshot"
+        timestamp created_at
+    }
+
+    tenant ||--o{ audit_log : "tracked by"
+    user_account ||--o{ audit_log : performs

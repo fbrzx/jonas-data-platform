@@ -1,0 +1,15 @@
+{
+  "name": "jonas-data-platform",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --filter ./apps/dashboard dev",
+    "build": "pnpm --filter ./apps/dashboard build",
+    "lint": "pnpm --filter ./apps/dashboard lint",
+    "install:all": "pnpm install"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

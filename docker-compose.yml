@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/db:/app/data/db          # DuckDB file
+      - ./data/parquet:/app/data/parquet # Parquet storage
+    environment:
+      DUCKDB_PATH: /app/data/db/jonas.duckdb
+      PARQUET_ROOT: /app/data/parquet
+      API_SECRET_KEY: ${API_SECRET_KEY:-change_me_in_dev}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
+      # Uncomment to use MotherDuck instead of local file:
+      # MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
