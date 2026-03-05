@@ -13,7 +13,8 @@ class IntegrationCreate(BaseModel):
     connector_type: str  # webhook | batch_csv | batch_json | ...
     config: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
-    entity_id: str | None = None  # links to catalogue.entity; source name is derived from entity.name
+    # links to catalogue.entity; source name is derived from entity.name
+    entity_id: str | None = None
 
 
 class IntegrationRead(IntegrationCreate):

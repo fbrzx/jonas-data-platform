@@ -187,8 +187,8 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": (
                         "UUID of an existing webhook integration. "
-                        "When provided, the integration's name is used as the bronze table source — "
-                        "no need to specify source separately."
+                        "When provided, the integration's name is used as the bronze "
+                        "table source — no need to specify source separately."
                     ),
                 },
                 "source": {
