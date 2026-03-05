@@ -172,6 +172,32 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "ingest_webhook",
+        "description": (
+            "Send a data payload directly into the bronze layer via webhook ingestion. "
+            "Use this after creating an integration to actually land records. "
+            "The source identifier determines the bronze table (e.g. source='orders' → bronze.orders). "
+            "Always confirm the data and source with the user before ingesting."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Source identifier — used as the bronze table name (snake_case)",
+                },
+                "data": {
+                    "description": "The payload to land: a JSON object or array of objects",
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional key-value metadata to attach to the record",
+                },
+            },
+            "required": ["source", "data"],
+        },
+    },
+    {
         "name": "create_integration",
         "description": (
             "Register a new data integration (e.g. webhook receiver or batch upload source). "

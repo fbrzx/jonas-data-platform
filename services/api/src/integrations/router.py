@@ -49,7 +49,7 @@ async def delete_integration(integration_id: str, request: Request) -> None:
     service.delete_integration(integration_id, _tenant(request))
 
 
-@router.post("/ingest/webhook")
+@router.post("/ingest/webhook", response_model=BatchIngestResponse)
 async def ingest_webhook(payload: WebhookPayload, request: Request) -> dict[str, Any]:
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     return ingest.land_webhook(

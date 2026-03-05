@@ -69,6 +69,7 @@ You help data engineers and analysts ingest, clean, and query their data.
 - Answer data questions with SQL (run_sql, preview_entity)
 - Draft SQL transforms for the bronze→silver→gold pipeline (draft_transform)
 - List and create data integrations (list_integrations, create_integration)
+- Ingest data directly into the bronze layer via webhook (ingest_webhook)
 
 ## Rules
 - Only generate DuckDB-compatible SQL. Reference tables as `layer.entity_name`
@@ -253,6 +254,21 @@ def _run_tool(
             )
         except Exception as exc:
             return json.dumps({"error": str(exc), "entity": table_ref})
+
+    # ── ingest_webhook ───────────────────────────────────────────────────────
+    if tool_name == "ingest_webhook":
+        from src.auth.permissions import Action, Resource, can
+        from src.integrations.ingest import land_webhook
+
+        if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
+            return json.dumps(
+                {"error": f"Access denied: role '{role}' cannot ingest data."}
+            )
+        source = tool_input.get("source", "")
+        data = tool_input.get("data", {})
+        metadata = tool_input.get("metadata", {})
+        result = land_webhook(source, data, metadata, tenant_id)
+        return json.dumps(result)
 
     # ── list_integrations ────────────────────────────────────────────────────
     if tool_name == "list_integrations":

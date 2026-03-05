@@ -54,12 +54,20 @@ def land_webhook(
     )
 
     row_id = str(uuid.uuid4())
-    conn.execute(
-        f"INSERT INTO {table} VALUES (?, ?, ?, ?, ?, ?)",  # noqa: S608
-        [row_id, tenant_id, _now(), source, json.dumps(data), json.dumps(metadata)],
-    )
+    try:
+        conn.execute(
+            f"INSERT INTO {table} VALUES (?, ?, ?, ?, ?, ?)",  # noqa: S608
+            [row_id, tenant_id, _now(), source, json.dumps(data), json.dumps(metadata)],
+        )
+    except Exception as exc:
+        return {
+            "rows_received": 1,
+            "rows_landed": 0,
+            "target_table": table,
+            "errors": [str(exc)],
+        }
 
-    return {"rows_received": 1, "rows_landed": 1, "target_table": table}
+    return {"rows_received": 1, "rows_landed": 1, "target_table": table, "errors": []}
 
 
 def land_batch_csv(
