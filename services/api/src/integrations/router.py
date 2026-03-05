@@ -101,15 +101,6 @@ async def ingest_via_integration(
     """
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     tenant_id = _tenant(request)
-    integration = service.get_integration(integration_id, tenant_id)
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
-    if integration.get("connector_type") != "webhook":
-        raise HTTPException(
-            status_code=422,
-            detail=f"Integration connector_type is '{integration['connector_type']}', not 'webhook'",
-        )
-
     source = _resolve_source(integration_id, tenant_id, "webhook")
     return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id)
 
