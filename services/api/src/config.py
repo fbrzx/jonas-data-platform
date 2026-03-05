@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     parquet_root: str = "data/parquet"
 
     # LLM provider config
-    # Supported providers: openai, google, ollama
+    # Supported providers: openai, google, ollama, claude (anthropic)
     llm_provider: str = "ollama"
     llm_model: str = "llama3.2"
 
@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Ollama (OpenAI-compatible endpoint)
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_api_key: str = "ollama"
+
+    # Anthropic / Claude (OpenAI-compatible endpoint)
+    claude_api_key: str = ""
+    claude_base_url: str = "https://api.anthropic.com/v1"
 
 
 settings = Settings()

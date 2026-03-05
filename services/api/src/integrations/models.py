@@ -28,9 +28,10 @@ class IntegrationRead(IntegrationCreate):
 class IntegrationUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    status: str | None = None   # active | paused
+    status: str | None = None  # active | paused
     config: dict[str, Any] | None = None
     tags: list[str] | None = None
+    entity_id: str | None = None
     # connector_type deliberately excluded — immutable
 
 

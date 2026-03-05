@@ -18,9 +18,7 @@ class ProviderClient:
 
 def _require(value: str, env_name: str, provider: str) -> None:
     if not value:
-        raise ValueError(
-            f"{env_name} must be set when LLM_PROVIDER is '{provider}'."
-        )
+        raise ValueError(f"{env_name} must be set when LLM_PROVIDER is '{provider}'.")
 
 
 def build_provider_client() -> ProviderClient:
@@ -55,7 +53,18 @@ def build_provider_client() -> ProviderClient:
             request_overrides={},
         )
 
+    if provider in ("claude", "anthropic"):
+        _require(settings.claude_api_key, "CLAUDE_API_KEY", provider)
+        return ProviderClient(
+            client=OpenAI(
+                api_key=settings.claude_api_key,
+                base_url=settings.claude_base_url,
+                default_headers={"anthropic-version": "2023-06-01"},
+            ),
+            request_overrides={},
+        )
+
     raise ValueError(
         "Unsupported LLM_PROVIDER "
-        f"'{settings.llm_provider}'. Use one of: openai, google, ollama."
+        f"'{settings.llm_provider}'. Use one of: openai, google, ollama, claude."
     )

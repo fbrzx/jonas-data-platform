@@ -104,6 +104,45 @@ async def list_runs(integration_id: str, request: Request) -> list[dict[str, Any
     return service.list_runs(integration_id, _tenant(request), limit=MAX_RUNS)
 
 
+@router.post("/{integration_id}/trigger", response_model=BatchIngestResponse)
+async def trigger_api_pull(integration_id: str, request: Request) -> dict[str, Any]:
+    """Manually trigger an api_pull integration to fetch its configured URL."""
+    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
+    tenant_id = _tenant(request)
+
+    integration = service.get_integration(integration_id, tenant_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    if integration.get("connector_type") != "api_pull":
+        ct = integration.get("connector_type", "")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Integration connector_type is '{ct}', not 'api_pull'",
+        )
+
+    import json as _json
+
+    raw_config = integration.get("config") or {}
+    config: dict = (
+        _json.loads(raw_config) if isinstance(raw_config, str) else raw_config
+    )
+    url: str = config.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="Integration config.url is not set")
+
+    headers: dict[str, str] = config.get("headers", {})
+    entity_id = integration.get("target_entity_id")
+    if entity_id:
+        from src.catalogue.service import get_entity
+
+        entity = get_entity(str(entity_id), tenant_id)
+        source = str(entity["name"]) if entity else str(integration["name"])
+    else:
+        source = str(integration["name"])
+
+    return ingest.land_api_pull(url, headers, source, tenant_id, integration_id)
+
+
 @router.post("/ingest/webhook", response_model=BatchIngestResponse)
 async def ingest_webhook(payload: WebhookPayload, request: Request) -> dict[str, Any]:
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
@@ -124,7 +163,9 @@ async def ingest_via_integration(
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     tenant_id = _tenant(request)
     source = _resolve_source(integration_id, tenant_id, "webhook")
-    return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id, integration_id)
+    return ingest.land_webhook(
+        source, payload.data, payload.metadata, tenant_id, integration_id
+    )
 
 
 @router.post("/ingest/batch", response_model=BatchIngestResponse)

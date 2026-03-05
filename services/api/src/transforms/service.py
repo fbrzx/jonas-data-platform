@@ -102,19 +102,21 @@ def update_transform(
 
     is_draft = existing.get("status") == "draft"
     _JSON_COLUMNS = {"tags"}
-    # sql and layer fields are only respected when draft
-    _DRAFT_ONLY = {"sql", "source_layer", "target_layer"}
-    # Map model field names to DB column names
     _COLUMN_MAP = {"sql": "transform_sql"}
 
     db_updates: dict[str, Any] = {}
     for k, v in data.items():
         if v is None:
             continue
-        if k in _DRAFT_ONLY and not is_draft:
-            continue
         col = _COLUMN_MAP.get(k, k)
-        db_updates[col] = json.dumps(v) if col in _JSON_COLUMNS and not isinstance(v, str) else v
+        db_updates[col] = (
+            json.dumps(v) if col in _JSON_COLUMNS and not isinstance(v, str) else v
+        )
+
+    # If SQL is being changed on a non-draft transform, reset status to draft
+    # so the updated SQL goes through the approval flow again.
+    if "transform_sql" in db_updates and not is_draft:
+        db_updates["status"] = "draft"
 
     if not db_updates:
         return existing

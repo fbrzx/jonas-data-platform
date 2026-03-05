@@ -72,6 +72,15 @@ You help data engineers and analysts ingest, clean, and query their data.
 - Ingest data directly into the bronze layer via webhook (ingest_webhook)
 - Check import run history to diagnose failures (get_integration_runs)
 
+## Integration connector types
+- **webhook** — external systems POST JSON to `/api/v1/integrations/<id>/webhook`
+- **batch_csv** / **batch_json** — users upload files via the dashboard or
+  `POST /api/v1/integrations/<id>/batch`
+- **api_pull** — the platform fetches JSON from a configured remote URL on demand;
+  trigger manually with `POST /api/v1/integrations/<id>/trigger` (no body required).
+  The integration's `config` must contain
+  `{{"url": "https://...", "headers": {{"Authorization": "Bearer ..."}}}}`.
+
 ## Data import flow — follow these steps precisely
 
 When a user wants to import data, guide them through this exact sequence:
@@ -101,6 +110,11 @@ For batch (CSV/JSON) integrations, tell the user to upload via the dashboard or:
 For webhook: call `ingest_webhook` with the integration_id and the user's data.
 For batch: instruct the user to upload the file via the dashboard Integrations page
 (click the Upload button on the integration card) or use the batch API endpoint above.
+For api_pull: tell the user to click the Pull button on the integration card in the dashboard,
+or call the trigger endpoint directly:
+  POST /api/v1/integrations/<integration_id>/trigger
+  Headers: Authorization: Bearer <token>
+  (no request body needed)
 
 ### Step 5 — Verify the import
 Call `get_integration_runs` to confirm rows landed. If there are failures, explain
@@ -122,6 +136,42 @@ If cleaning is needed, offer to `draft_transform` to promote to silver/gold.
 - When giving API endpoint instructions, always show the exact URL, required headers,
   and a concrete example body — never make the user guess.
 - Be concise. Lead with the answer or action, then explain if needed.
+
+## Physical storage formats
+Bronze tables have two possible physical layouts depending on how data was ingested:
+1. **Webhook / api_pull format** — columns:
+   `id, tenant_id, ingested_at, source, payload JSON, metadata JSON`.
+   Field values live inside `payload`. Access with: `json_extract(payload, '$.field_name')` or
+   `payload->>'field_name'` (DuckDB shorthand).
+   Example: `SELECT json_extract(payload, '$.user_id') AS user_id FROM bronze.orders`
+2. **Batch CSV format** — individual columns per field (e.g. `user_id, amount, status`).
+   Use column names directly.
+
+The system prompt shows "PHYSICAL STORAGE: webhook/api_pull format" or "Physical columns" for each
+entity. **Always read this before writing SQL.** Never reference a column name that isn't in the
+physical columns list. For webhook tables, always use json_extract for field access.
+
+## SQL rules
+- Before writing any transform SQL, check the physical columns shown for each entity above.
+- If a table shows webhook format, use `json_extract(payload, '$.colname')`
+  — never bare column names.
+- Validate joins: only join on columns that physically exist on both sides.
+- Run `run_sql` with `SELECT * FROM table LIMIT 1` to verify schema when uncertain.
+
+## Relationship rules (read carefully)
+- The system prompt always includes the current state of entities, integrations, and transforms.
+  Read it before taking any action — do not create duplicates.
+- **Integrations must link to an entity**: always pass `entity_id` when creating an integration.
+  The entity determines the bronze table name. If no entity exists yet, create one first.
+- **Transforms must reference real tables**: before writing SQL, confirm the source table
+  (`source_layer.entity_name`) exists in the catalogue. Never reference a table that isn't listed.
+- **Before draft_transform**: call `list_transforms` — if a transform with the same name or
+  purpose exists, call `update_transform` instead. Creating a duplicate will fail.
+- **Before create_integration**: check the integrations listed above — if one already feeds the
+  same entity, tell the user and ask whether they want to create another or reuse the existing one.
+- **Medallion flow**: bronze = raw ingested data. silver = cleaned/typed.
+  gold = aggregated/business.
+  Transforms always go bronze→silver or silver→gold, never backwards or skipping layers.
 
 {catalogue_context}
 """
@@ -312,7 +362,9 @@ def _run_tool(
         if integration_id:
             integration = get_integration(integration_id, tenant_id)
             if not integration:
-                return json.dumps({"error": f"Integration '{integration_id}' not found."})
+                return json.dumps(
+                    {"error": f"Integration '{integration_id}' not found."}
+                )
             if integration.get("connector_type") != "webhook":
                 return json.dumps(
                     {
@@ -339,7 +391,9 @@ def _run_tool(
 
         if not source:
             return json.dumps(
-                {"error": "Provide either integration_id or source to identify the target table."}
+                {
+                    "error": "Provide either integration_id or source to identify the target table."
+                }
             )
 
         data = tool_input.get("data", {})
@@ -365,6 +419,9 @@ def _run_tool(
                 else None,
                 "batch_endpoint": f"/api/v1/integrations/{i['id']}/batch"
                 if i.get("connector_type") in ("batch_csv", "batch_json")
+                else None,
+                "trigger_endpoint": f"/api/v1/integrations/{i['id']}/trigger"
+                if i.get("connector_type") == "api_pull"
                 else None,
             }
             for i in integrations
@@ -393,11 +450,42 @@ def _run_tool(
         result = create_integration(tool_input, tenant_id)
         return json.dumps(result, default=str)
 
+    # ── list_transforms ──────────────────────────────────────────────────────
+    if tool_name == "list_transforms":
+        from src.transforms.service import list_transforms
+
+        transforms = list_transforms(tenant_id)
+        summary = [
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "description": t.get("description", ""),
+                "source_layer": t.get("source_layer"),
+                "target_layer": t.get("target_layer"),
+                "status": t.get("status"),
+                "sql_preview": (t.get("transform_sql") or "")[:120],
+            }
+            for t in transforms
+        ]
+        return json.dumps(summary)
+
     # ── draft_transform ──────────────────────────────────────────────────────
     if tool_name == "draft_transform":
         from src.transforms.service import create_transform
 
         result = create_transform(tool_input, tenant_id, created_by=created_by)
+        return json.dumps(result, default=str)
+
+    # ── update_transform ─────────────────────────────────────────────────────
+    if tool_name == "update_transform":
+        from src.transforms.service import update_transform
+
+        transform_id = tool_input.pop("transform_id", None)
+        if not transform_id:
+            return json.dumps({"error": "transform_id is required."})
+        result = update_transform(transform_id, tool_input, tenant_id)
+        if not result:
+            return json.dumps({"error": f"Transform '{transform_id}' not found."})
         return json.dumps(result, default=str)
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
@@ -551,9 +639,7 @@ def stream_chat(
                     if tool_delta.function.name:
                         partial["name"] = tool_delta.function.name
                     if tool_delta.function.arguments:
-                        partial["arguments_parts"].append(
-                            tool_delta.function.arguments
-                        )
+                        partial["arguments_parts"].append(tool_delta.function.arguments)
 
         if not partial_tool_calls:
             yield f"data: {json.dumps({'type': 'done'})}\n\n"

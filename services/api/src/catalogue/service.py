@@ -181,7 +181,9 @@ def update_field(
         return None
 
     _ALLOWED = {"data_type", "nullable", "is_pii", "description"}
-    db_updates: dict[str, Any] = {k: v for k, v in data.items() if k in _ALLOWED and v is not None}
+    db_updates: dict[str, Any] = {
+        k: v for k, v in data.items() if k in _ALLOWED and v is not None
+    }
 
     if not db_updates:
         return existing
@@ -267,28 +269,125 @@ def preview_entity(
 
 
 def build_catalogue_context(tenant_id: str, role: str) -> str:
-    """Return a compact text description of the catalogue for the system prompt."""
+    """Return a compact text description of the catalogue, integrations and transforms."""
     entities = get_accessible_entities(tenant_id, role)
-    if not entities:
-        return "No entities in catalogue yet."
 
-    lines: list[str] = ["## Available tables\n"]
-    for e in entities:
-        layer = e.get("layer", "?")
-        name = e.get("name", "?")
-        table_ref = f"{layer}.{name}"
-        desc = e.get("description", "")
-        lines.append(f"### {table_ref}" + (f"  — {desc}" if desc else ""))
-        fields: list[dict[str, Any]] = e.get("fields", [])
-        if fields:
-            for f in fields:
-                pii_tag = " [PII]" if f.get("is_pii") else ""
-                nullable_tag = " nullable" if f.get("nullable") else ""
-                lines.append(
-                    f"  - {f['name']}: {f.get('data_type','string')}{nullable_tag}{pii_tag}"
+    lines: list[str] = []
+
+    conn = get_conn()
+    entity_map: dict[str, str] = {
+        str(e["id"]): f"{e.get('layer','?')}.{e.get('name','?')}" for e in entities
+    }
+
+    # ── Entities ─────────────────────────────────────────────────────────────
+    if not entities:
+        lines.append("## Catalogue\nNo entities registered yet.\n")
+    else:
+        conn = get_conn()
+        lines.append("## Catalogue entities\n")
+        for e in entities:
+            layer = e.get("layer", "?")
+            name = e.get("name", "?")
+            table_ref = f"{layer}.{name}"
+            desc = e.get("description", "")
+            lines.append(
+                f"### {table_ref}  (id: {e['id']})" + (f"  — {desc}" if desc else "")
+            )
+
+            # Physical columns actually in DuckDB (source of truth for SQL)
+            try:
+                phys_rows = conn.execute(
+                    "SELECT column_name, data_type FROM information_schema.columns "
+                    "WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position",
+                    [layer, name],
+                ).fetchall()
+                phys_cols = [r[0] for r in phys_rows]
+            except Exception:
+                phys_cols = []
+
+            if phys_cols:
+                is_webhook_format = (
+                    "payload" in phys_cols and "ingested_at" in phys_cols
                 )
-        else:
-            lines.append("  (no fields registered yet)")
+                if is_webhook_format:
+                    lines.append(
+                        "  PHYSICAL STORAGE: webhook/api_pull format — "
+                        "data is in the `payload` JSON column. "
+                        "Use json_extract(payload, '$.field') to access fields. "
+                        "Do NOT reference catalogue field names as direct columns."
+                    )
+                    lines.append(f"  Physical columns: {', '.join(phys_cols)}")
+                else:
+                    lines.append(
+                        f"  Physical columns (use these in SQL): {', '.join(phys_cols)}"
+                    )
+            else:
+                lines.append("  (table not yet created in DuckDB — no data ingested)")
+
+            # Catalogue field definitions (logical schema)
+            fields: list[dict[str, Any]] = e.get("fields", [])
+            if fields and not (phys_cols and "payload" not in phys_cols):
+                # Only show catalogue fields as SQL-usable when table has matching columns
+                pass
+            if fields:
+                field_names = ", ".join(f["name"] for f in fields)
+                pii_fields = [f["name"] for f in fields if f.get("is_pii")]
+                lines.append(f"  Catalogue fields: {field_names}")
+                if pii_fields:
+                    lines.append(f"  PII fields: {', '.join(pii_fields)}")
+            lines.append("")
+
+    # ── Integrations ─────────────────────────────────────────────────────────
+    try:
+        int_rows = conn.execute(
+            "SELECT id, name, connector_type, status, target_entity_id FROM integrations.integration WHERE tenant_id = ?",  # noqa: E501
+            [tenant_id],
+        ).fetchall()
+        int_cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+        integrations = [dict(zip(int_cols, r)) for r in int_rows]
+    except Exception:
+        integrations = []
+
+    if integrations:
+        lines.append("## Integrations (data sources)\n")
+        for i in integrations:
+            eid = str(i.get("target_entity_id") or "")
+            linked = f" → {entity_map.get(eid, eid)}" if eid else " (no entity linked)"
+            trigger = (
+                f"  trigger: POST /api/v1/integrations/{i['id']}/trigger"
+                if i.get("connector_type") == "api_pull"
+                else ""
+            )
+            lines.append(
+                f"- {i['name']} (id: {i['id']}, type: {i.get('connector_type')}, "
+                f"status: {i.get('status')}){linked}"
+            )
+            if trigger:
+                lines.append(f"  {trigger}")
+        lines.append("")
+
+    # ── Transforms ───────────────────────────────────────────────────────────
+    try:
+        t_rows = conn.execute(
+            "SELECT id, name, description, source_layer, target_layer, status, transform_sql FROM transforms.transform WHERE tenant_id = ?",  # noqa: E501
+            [tenant_id],
+        ).fetchall()
+        t_cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+        transforms = [dict(zip(t_cols, r)) for r in t_rows]
+    except Exception:
+        transforms = []
+
+    if transforms:
+        lines.append("## Transforms\n")
+        for t in transforms:
+            sql_preview = (t.get("transform_sql") or "")[:80].replace("\n", " ")
+            desc = t.get("description", "")
+            lines.append(
+                f"- {t['name']} (id: {t['id']}, {t.get('source_layer')}→{t.get('target_layer')}, "
+                f"status: {t.get('status')})" + (f"  — {desc}" if desc else "")
+            )
+            if sql_preview:
+                lines.append(f"  sql: {sql_preview}…")
         lines.append("")
 
     return "\n".join(lines)

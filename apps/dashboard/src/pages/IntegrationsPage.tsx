@@ -22,20 +22,21 @@ const TYPE_GLYPH: Record<string, string> = {
   webhook:    '⬡',
   batch_csv:  '⊞',
   batch_json: '⊟',
-  scheduled:  '◷',
+  api_pull:   '◎',
 }
 
 const TYPE_COLOR: Record<string, string> = {
   webhook:    'text-j-purple',
   batch_csv:  'text-j-accent',
   batch_json: 'text-j-amber',
-  scheduled:  'text-j-green',
+  api_pull:   'text-j-green',
 }
 
 const CONNECTOR_TYPES = [
   { value: 'webhook',    label: 'Webhook',    hint: 'Real-time JSON events via HTTP POST' },
   { value: 'batch_csv',  label: 'Batch CSV',  hint: 'Periodic CSV file uploads (max 50 MB)' },
   { value: 'batch_json', label: 'Batch JSON', hint: 'Periodic JSON file uploads (array or newline-delimited)' },
+  { value: 'api_pull',   label: 'API Pull',   hint: 'Manually trigger a fetch from a remote JSON endpoint' },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -183,6 +184,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<IntegrationCreate>({ name: '', connector_type: 'webhook' })
   const [error, setError] = useState<string | null>(null)
+  const { data: entities } = useQuery({ queryKey: ['entities'], queryFn: api.catalogue.list, staleTime: 60_000 })
 
   const mutation = useMutation({
     mutationFn: (body: IntegrationCreate) => api.integrations.create(body),
@@ -213,12 +215,12 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           {/* Connector type */}
           <div>
             <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-2">Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {CONNECTOR_TYPES.map((t) => (
                 <button
                   key={t.value}
                   type="button"
-                  onClick={() => setForm((f) => ({ ...f, connector_type: t.value as IntegrationCreate['connector_type'] }))}
+                  onClick={() => setForm((f) => ({ ...f, connector_type: t.value as IntegrationCreate['connector_type'], config: {} }))}
                   className={`px-2 py-2 rounded border font-mono text-[10px] text-left transition-colors ${
                     form.connector_type === t.value
                       ? 'border-j-accent bg-j-accent/10 text-j-accent'
@@ -233,6 +235,36 @@ function CreateModal({ onClose }: { onClose: () => void }) {
               <p className="font-mono text-[10px] text-j-dim mt-1.5">{selectedType.hint}</p>
             )}
           </div>
+
+          {/* API Pull config */}
+          {form.connector_type === 'api_pull' && (
+            <div className="space-y-3 rounded border border-j-border bg-j-surface2 px-3 py-3">
+              <p className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim">Pull Configuration</p>
+              <div>
+                <label className="font-mono text-[10px] text-j-dim block mb-1">Endpoint URL <span className="text-j-red">*</span></label>
+                <input
+                  type="url"
+                  placeholder="https://api.example.com/data"
+                  value={(form.config?.url as string) ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, config: { ...f.config, url: e.target.value } }))}
+                  className="w-full bg-j-bg border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+                />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] text-j-dim block mb-1">Authorization header <span className="text-j-dim">(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="Bearer your-token-here"
+                  value={(form.config?.headers as Record<string, string> | undefined)?.Authorization ?? ''}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    config: { ...f.config, headers: { ...(f.config?.headers as object ?? {}), Authorization: e.target.value } },
+                  }))}
+                  className="w-full bg-j-bg border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Name */}
           <div>
@@ -257,6 +289,22 @@ function CreateModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
             />
+          </div>
+
+          {/* Catalogue entity link */}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Linked Entity</label>
+            <select
+              value={form.entity_id ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, entity_id: e.target.value || undefined }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright focus:outline-none focus:border-j-accent"
+            >
+              <option value="">— none —</option>
+              {(entities ?? []).map((e) => (
+                <option key={e.id} value={e.id}>{e.name} ({e.layer})</option>
+              ))}
+            </select>
+            <p className="font-mono text-[10px] text-j-dim mt-1">Data lands in the linked entity's bronze table.</p>
           </div>
 
           {error && (
@@ -287,11 +335,18 @@ function EditIntegrationModal({ integration, onClose }: { integration: Integrati
   const { canAdmin } = usePermissions()
   const qc = useQueryClient()
 
+  const parsedConfig: Record<string, unknown> = (() => {
+    try { return JSON.parse(integration.config ?? '{}') } catch { return {} }
+  })()
+
   const [form, setForm] = useState<IntegrationUpdate>({
     name: integration.name,
     description: integration.description ?? '',
     status: (integration.status as 'active' | 'paused') ?? 'active',
+    config: parsedConfig,
+    entity_id: integration.target_entity_id ?? null,
   })
+  const { data: entities } = useQuery({ queryKey: ['entities'], queryFn: api.catalogue.list, staleTime: 60_000 })
   const [error, setError] = useState<string | null>(null)
 
   const mutation = useMutation({
@@ -369,6 +424,52 @@ function EditIntegrationModal({ integration, onClose }: { integration: Integrati
             </select>
           </div>
 
+          {/* Catalogue entity link */}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Linked Entity</label>
+            <select
+              value={form.entity_id ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, entity_id: e.target.value || null }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright focus:outline-none focus:border-j-accent"
+            >
+              <option value="">— none —</option>
+              {(entities ?? []).map((e) => (
+                <option key={e.id} value={e.id}>{e.name} ({e.layer})</option>
+              ))}
+            </select>
+            <p className="font-mono text-[10px] text-j-dim mt-1">Data lands in the linked entity's bronze table.</p>
+          </div>
+
+          {/* API Pull config */}
+          {integration.connector_type === 'api_pull' && (
+            <div className="space-y-3 rounded border border-j-border bg-j-surface2 px-3 py-3">
+              <p className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim">Pull Configuration</p>
+              <div>
+                <label className="font-mono text-[10px] text-j-dim block mb-1">Endpoint URL <span className="text-j-red">*</span></label>
+                <input
+                  type="url"
+                  placeholder="https://api.example.com/data"
+                  value={(form.config?.url as string) ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, config: { ...f.config, url: e.target.value } }))}
+                  className="w-full bg-j-bg border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+                />
+              </div>
+              <div>
+                <label className="font-mono text-[10px] text-j-dim block mb-1">Authorization header <span className="text-j-dim">(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="Bearer your-token-here"
+                  value={(form.config?.headers as Record<string, string> | undefined)?.Authorization ?? ''}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    config: { ...f.config, headers: { ...(f.config?.headers as object ?? {}), Authorization: e.target.value } },
+                  }))}
+                  className="w-full bg-j-bg border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+                />
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="font-mono text-[11px] text-j-red bg-j-red-dim border border-j-red rounded px-3 py-2">{error}</div>
           )}
@@ -399,12 +500,14 @@ function IntegrationCard({
   onRuns,
   onEdit,
   onDelete,
+  onTrigger,
 }: {
   integration: Integration
   onUpload: () => void
   onRuns: () => void
   onEdit: () => void
   onDelete: () => void
+  onTrigger: () => void
 }) {
   const s = STATUS_STYLE[integration.status] ?? STATUS_STYLE.inactive
   const glyph = TYPE_GLYPH[integration.connector_type] ?? '◉'
@@ -412,6 +515,7 @@ function IntegrationCard({
   const [copied, setCopied] = useState(false)
   const isWebhook = integration.connector_type === 'webhook'
   const isBatch = integration.connector_type === 'batch_csv' || integration.connector_type === 'batch_json'
+  const isApiPull = integration.connector_type === 'api_pull'
 
   function handleCopy() {
     copyText(webhookUrl(integration.id))
@@ -479,6 +583,15 @@ function IntegrationCard({
               upload
             </button>
           )}
+          {isApiPull && (
+            <button
+              onClick={onTrigger}
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-green border border-j-green px-2 py-1 rounded hover:bg-j-green hover:text-j-bg transition-colors"
+              title="Fetch from endpoint now"
+            >
+              pull
+            </button>
+          )}
           <button
             onClick={onEdit}
             className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-2 py-1 rounded transition-colors"
@@ -520,6 +633,16 @@ export default function IntegrationsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrations'] }),
   })
 
+  const triggerMutation = useMutation({
+    mutationFn: (id: string) => api.integrations.trigger(id),
+    onSuccess: (data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['integration-runs', id] })
+      alert(`Pull complete — ${data.rows_landed}/${data.rows_received} rows landed into ${data.target_table}` +
+        (data.errors.length ? `\n⚠ ${data.errors.slice(0, 2).join('; ')}` : ''))
+    },
+    onError: (err: Error) => alert(`Pull failed: ${err.message}`),
+  })
+
   function handleDelete(id: string, name: string) {
     if (!confirm(`Delete integration "${name}"? This cannot be undone.`)) return
     deleteMutation.mutate(id)
@@ -557,7 +680,7 @@ export default function IntegrationsPage() {
         <span className="mx-2 text-j-border">|</span>
         <span>1. Create an integration</span>
         <span className="mx-1.5 opacity-40">→</span>
-        <span>2. Webhook: copy the URL and POST JSON · Batch: click Upload</span>
+        <span>2. Webhook: copy the URL and POST JSON · Batch: click Upload · API Pull: click Pull</span>
         <span className="mx-1.5 opacity-40">→</span>
         <span>3. Check Runs to verify rows landed</span>
         <span className="mx-1.5 opacity-40">→</span>
@@ -592,6 +715,7 @@ export default function IntegrationsPage() {
             onRuns={() => setRunsTarget(i.id)}
             onEdit={() => setEditTarget(i)}
             onDelete={() => handleDelete(i.id, i.name)}
+            onTrigger={() => triggerMutation.mutate(i.id)}
           />
         ))}
       </div>

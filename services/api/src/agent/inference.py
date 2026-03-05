@@ -36,9 +36,21 @@ def _is_pii(field_name: str) -> bool:
 
 _ISO_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_UUID = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_URL = re.compile(r"^https?://\S+$", re.IGNORECASE)
+
+# Field names that are semantically identifiers — never coerce to int/float
+_ID_FIELD = re.compile(
+    r"(^|_)(id|uuid|guid|key|token|hash|ref|code|sku|slug)$",
+    re.IGNORECASE,
+)
 
 
-def _detect_type(values: list[Any]) -> str:
+def _detect_type(values: list[Any], field_name: str = "") -> str:
     """Infer a platform type from a list of sample values (non-null)."""
     if not values:
         return "string"
@@ -53,9 +65,11 @@ def _detect_type(values: list[Any]) -> str:
     if all(isinstance(v, bool) for v in values):
         return "bool"
 
+    is_id_field = bool(field_name and _ID_FIELD.search(field_name))
+
+    # Native numeric types — always respected (id=299 should be int)
     if all(isinstance(v, int) and not isinstance(v, bool) for v in values):
         return "int"
-
     if all(
         isinstance(v, float) or (isinstance(v, int) and not isinstance(v, bool))
         for v in values
@@ -67,30 +81,42 @@ def _detect_type(values: list[Any]) -> str:
     if not str_values:
         return "string"
 
+    # UUID — must check before numeric, as some UUIDs contain only hex digits
+    if all(_UUID.match(s) for s in str_values):
+        return "string"
+
     if all(_ISO_TIMESTAMP.match(s) for s in str_values):
         return "timestamp"
     if all(_ISO_DATE.match(s) for s in str_values):
         return "timestamp"
 
-    # Numeric strings
-    def _is_int(s: str) -> bool:
-        try:
-            int(s)
-            return True
-        except ValueError:
-            return False
+    if all(_EMAIL.match(s) for s in str_values):
+        return "string"  # email is string; PII flag handles the sensitivity
 
-    def _is_float(s: str) -> bool:
-        try:
-            float(s)
-            return True
-        except ValueError:
-            return False
+    if all(_URL.match(s) for s in str_values):
+        return "string"
 
-    if all(_is_int(s) for s in str_values):
-        return "int"
-    if all(_is_float(s) for s in str_values):
-        return "float"
+    # Numeric strings — skip if this is an identifier field
+    if not is_id_field:
+
+        def _is_int(s: str) -> bool:
+            try:
+                int(s)
+                return True
+            except ValueError:
+                return False
+
+        def _is_float(s: str) -> bool:
+            try:
+                float(s)
+                return True
+            except ValueError:
+                return False
+
+        if all(_is_int(s) for s in str_values):
+            return "int"
+        if all(_is_float(s) for s in str_values):
+            return "float"
 
     return "string"
 
@@ -140,7 +166,7 @@ def infer_from_json(
             else:
                 flat_values.append(v)
 
-        data_type = _detect_type(flat_values)
+        data_type = _detect_type(flat_values, field_name=key)
         is_pii = _is_pii(key)
 
         # Collect a few sample values (non-PII only, for safety)

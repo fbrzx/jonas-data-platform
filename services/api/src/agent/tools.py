@@ -268,9 +268,11 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "connector_type": {
                     "type": "string",
-                    "enum": ["webhook", "batch_csv", "batch_json"],
+                    "enum": ["webhook", "batch_csv", "batch_json", "api_pull"],
                     "description": (
-                        "How data arrives: webhook (real-time JSON), batch_csv, or batch_json"
+                        "How data arrives: webhook (real-time JSON push), batch_csv, batch_json, "
+                        "or api_pull (platform fetches from a remote URL on demand — "
+                        "requires config.url)"
                     ),
                 },
                 "entity_id": {
@@ -285,7 +287,7 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "object",
                     "description": (
                         "Connector-specific config "
-                        "(e.g. {\"source_url\": \"...\", \"auth_header\": \"x-api-key\"})"
+                        '(e.g. {"source_url": "...", "auth_header": "x-api-key"})'
                     ),
                 },
                 "tags": {
@@ -299,11 +301,27 @@ TOOLS: list[dict[str, Any]] = [
     },
     # ── Transforms ───────────────────────────────────────────────────────────
     {
+        "name": "list_transforms",
+        "description": (
+            "List all transform drafts and their status for the current tenant. "
+            "Returns id, name, description, source_layer, target_layer, status, and transform_sql. "
+            "Call this before draft_transform to check whether a transform already exists "
+            "that you should update instead of creating a duplicate."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
         "name": "draft_transform",
         "description": (
-            "Create a SQL transform draft that moves data between medallion layers "
+            "Create a NEW SQL transform draft that moves data between medallion layers "
             "(bronze→silver or silver→gold). The transform is saved with status=draft "
-            "and requires admin approval before it can execute."
+            "and requires admin approval before it can execute. "
+            "IMPORTANT: call list_transforms first — if a transform with the same name or "
+            "purpose already exists, use update_transform instead to avoid duplicates."
         ),
         "input_schema": {
             "type": "object",
@@ -332,6 +350,44 @@ TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["name", "sql", "source_layer", "target_layer"],
+        },
+    },
+    {
+        "name": "update_transform",
+        "description": (
+            "Update an existing transform draft — change its SQL, description, or layer settings. "
+            "Only drafts can have their SQL/layers changed; approved/rejected transforms will be "
+            "reset to draft status when SQL is modified (requiring re-approval). "
+            "Use this instead of draft_transform when a transform already exists."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "transform_id": {
+                    "type": "string",
+                    "description": "UUID of the transform to update",
+                },
+                "name": {"type": "string", "description": "New name (optional)"},
+                "description": {
+                    "type": "string",
+                    "description": "New description (optional)",
+                },
+                "sql": {
+                    "type": "string",
+                    "description": "Updated DuckDB SQL (resets status to draft if not already)",
+                },
+                "source_layer": {
+                    "type": "string",
+                    "enum": ["bronze", "silver"],
+                    "description": "Updated source layer (optional)",
+                },
+                "target_layer": {
+                    "type": "string",
+                    "enum": ["silver", "gold"],
+                    "description": "Updated target layer (optional)",
+                },
+            },
+            "required": ["transform_id"],
         },
     },
 ]

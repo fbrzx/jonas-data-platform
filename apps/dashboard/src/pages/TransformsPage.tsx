@@ -131,6 +131,11 @@ function TransformFormModal({
             ⚠ This transform is {transform.status} — SQL and layer fields are locked. Only name, description and tags can be changed.
           </div>
         )}
+        {isEdit && !isDraft && canAdmin && (
+          <div className="px-4 py-2 bg-j-amber-dim border-b border-j-amber font-mono text-[10px] text-j-amber">
+            ⚠ This transform is {transform.status}. Editing the SQL will reset it to draft and require re-approval.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Name */}

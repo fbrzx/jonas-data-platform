@@ -19,6 +19,7 @@ Before writing any code, read these docs in order:
 - Data model designed (13 tables across 6 domains)
 - Phase 1 complete: FastAPI service + React dashboard fully built
 - Phase 2 complete: agent core, schema inference, PII masking, NL-to-SQL, lineage view
+- Phase 3 complete: streaming SSE chat, 13 agent tools, full integration + transform CRUD
 
 ## Phase 1 Status (DONE)
 
@@ -31,7 +32,6 @@ Before writing any code, read these docs in order:
 ## Phase 2 Status (DONE)
 
 1. ✅ **Agent core** (`services/api/src/agent/`): tool-use loop via provider-based LLM API (`openai`, `google`, `ollama`)
-   - 7 tools: `list_entities`, `describe_entity`, `infer_schema`, `register_entity`, `run_sql`, `preview_entity`, `draft_transform`
    - Dynamic system prompt with live catalogue context
    - Role-scoped SQL enforcement (bronze/silver/gold layer access by role)
 2. ✅ **Schema inference** (`agent/inference.py`): JSON/CSV → field definitions with type detection + PII heuristics
@@ -39,12 +39,41 @@ Before writing any code, read these docs in order:
 4. ✅ **NL-to-SQL**: `run_sql` tool enforces SELECT-only + layer RBAC
 5. ✅ **Dashboard enhanced**: DashboardPage (stats + quick actions), LineagePage (medallion flow)
 
-## Next Steps (Phase 3)
+## Phase 3 Status (DONE)
 
-- Wire up MotherDuck: run `services/api/src/db/init.py` bootstrap against live MD instance
-- End-to-end demo: seed → ingest → agent registers entity → transform draft → approval
-- Add transform execution (run approved transforms against DuckDB)
-- Streaming chat responses (SSE) for long-running queries
+1. ✅ **Streaming SSE chat**: `stream_chat` in `agent/service.py` — emits `tool`/`delta`/`done` events
+2. ✅ **Agent tools expanded to 13**: added `list_integrations`, `get_integration_runs`, `ingest_webhook`, `create_integration`, `list_transforms`, `update_transform` (on top of original 7)
+3. ✅ **Agent system prompt**: 6-step guided import flow, physical storage format docs (webhook vs batch column layout), integration/transform relationship rules
+4. ✅ **Integration API**: `api_pull` connector type; linked endpoints `/{id}/webhook`, `/{id}/batch`, `/{id}/trigger`, `/{id}/runs`; source table resolved from linked entity name
+5. ✅ **Transform CRUD**: `update_transform` + `delete_transform`; SQL edits reset approved transforms to draft; full `transform_run` lifecycle records with `last_run_at`
+6. ✅ **TransformsPage**: create/edit modal with RBAC-aware form (SQL locked for non-admins on approved transforms); inline execute result
+7. ✅ **IntegrationsPage**: upload for batch integrations, trigger for api_pull, run history display
+
+## Next Steps (Phase 4) — **current priority**
+
+> Full plan: [`.claude/docs/phase-4-plan.md`](.claude/docs/phase-4-plan.md)
+
+Planned in this order:
+
+1. **Rename integrations → connectors** — DB migration + all call sites
+2. **API discovery via chat** — `discover_api` agent tool (httpx pull + schema inference) + `jonas-form` inline form card in chat
+3. **Job scheduler** — APScheduler cron pulls; `cron_schedule` column on connectors; cron UI in ConnectorsPage
+4. **Audit page** — chat session persistence; unified jobs/logs/conversations view
+5. **Data pager** — reusable `DataPager` component; paginated preview endpoint; applied to catalogue + audit
+6. **Silver transform flow** — SELECT + UPSERT-only SQL validation; guided `INSERT OR REPLACE` pattern via agent
+
+Deferred:
+- Wire up MotherDuck (when moving beyond local DuckDB)
+
+## Phase 5 — Auth, Tenant Config & Data Segregation (future)
+
+> Full plan: [`.claude/docs/phase-5-plan.md`](.claude/docs/phase-5-plan.md)
+> **Needs detailed planning before implementation starts.**
+
+- Real authentication — JWT login/refresh/logout replacing hardcoded demo tokens; invite-only user registration
+- Tenant configuration — per-tenant LLM provider, PII settings, retention policy (admin only)
+- Tenant user administration — invite, role assignment, revoke access (admin only)
+- Tenant data segregation — schema-per-tenant for bronze/silver/gold physical data; RBAC audit + cross-tenant isolation tests; MotherDuck database-per-tenant path
 
 ## Technical Notes
 

@@ -178,12 +178,94 @@ def land_batch_csv(
 
     rejected = len(rows) - landed
     status = "success" if not errors else ("partial" if landed > 0 else "failed")
-    run_id = _record_run(integration_id, status, started_at, len(rows), landed, rejected, errors)
+    run_id = _record_run(
+        integration_id, status, started_at, len(rows), landed, rejected, errors
+    )
     return {
         "rows_received": len(rows),
         "rows_landed": landed,
         "target_table": table,
         "errors": errors,
+        "run_id": run_id,
+    }
+
+
+def land_api_pull(
+    url: str,
+    headers: dict[str, str],
+    source: str,
+    tenant_id: str,
+    integration_id: str | None = None,
+) -> dict[str, Any]:
+    """Fetch JSON from a remote URL and land the result into the bronze layer."""
+    import httpx
+
+    started_at = _now()
+    try:
+        response = httpx.get(url, headers=headers, timeout=30, follow_redirects=True)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        msg = f"HTTP {exc.response.status_code}: {exc.response.text[:200]}"
+        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
+        return {
+            "rows_received": 0,
+            "rows_landed": 0,
+            "target_table": _bronze_table(source),
+            "errors": [msg],
+            "run_id": run_id,
+        }
+    except Exception as exc:
+        msg = str(exc)
+        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
+        return {
+            "rows_received": 0,
+            "rows_landed": 0,
+            "target_table": _bronze_table(source),
+            "errors": [msg],
+            "run_id": run_id,
+        }
+
+    try:
+        data = response.json()
+    except Exception as exc:
+        msg = f"Response is not valid JSON: {exc}"
+        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
+        return {
+            "rows_received": 0,
+            "rows_landed": 0,
+            "target_table": _bronze_table(source),
+            "errors": [msg],
+            "run_id": run_id,
+        }
+
+    # Normalise to a list of records
+    records: list[Any] = data if isinstance(data, list) else [data]
+
+    all_errors: list[str] = []
+    total_landed = 0
+    for record in records:
+        result = land_webhook(source, record, {"pulled_from": url}, tenant_id)
+        total_landed += result["rows_landed"]
+        all_errors.extend(result.get("errors", []))
+
+    rejected = len(records) - total_landed
+    status = (
+        "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
+    )
+    run_id = _record_run(
+        integration_id,
+        status,
+        started_at,
+        len(records),
+        total_landed,
+        rejected,
+        all_errors,
+    )
+    return {
+        "rows_received": len(records),
+        "rows_landed": total_landed,
+        "target_table": _bronze_table(source),
+        "errors": all_errors,
         "run_id": run_id,
     }
 
@@ -212,9 +294,17 @@ def land_batch_json(
         all_errors.extend(result.get("errors", []))
 
     rejected = len(data) - total_landed
-    status = "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
+    status = (
+        "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
+    )
     run_id = _record_run(
-        integration_id, status, started_at, len(data), total_landed, rejected, all_errors
+        integration_id,
+        status,
+        started_at,
+        len(data),
+        total_landed,
+        rejected,
+        all_errors,
     )
     return {
         "rows_received": len(data),

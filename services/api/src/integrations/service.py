@@ -72,12 +72,17 @@ def update_integration(
     _JSON_COLUMNS = {"config", "tags"}
     # connector_type is immutable — always excluded
     data.pop("connector_type", None)
+    # entity_id in the API maps to target_entity_id in the DB
+    if "entity_id" in data:
+        data["target_entity_id"] = data.pop("entity_id")
 
     db_updates: dict[str, Any] = {}
     for k, v in data.items():
         if v is None:
             continue
-        db_updates[k] = json.dumps(v) if k in _JSON_COLUMNS and not isinstance(v, str) else v
+        db_updates[k] = (
+            json.dumps(v) if k in _JSON_COLUMNS and not isinstance(v, str) else v
+        )
 
     if not db_updates:
         return existing
@@ -99,7 +104,9 @@ def delete_integration(integration_id: str, tenant_id: str) -> None:
     )
 
 
-def list_runs(integration_id: str, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
+def list_runs(
+    integration_id: str, tenant_id: str, limit: int = 20
+) -> list[dict[str, Any]]:
     """Return recent runs for an integration, newest first."""
     conn = get_conn()
     # Verify the integration belongs to this tenant before returning runs

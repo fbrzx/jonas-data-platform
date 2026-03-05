@@ -70,7 +70,7 @@ export interface Integration {
   connector_type: string
   status: string
   config?: string
-  target_entity_id?: string
+  target_entity_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -78,7 +78,7 @@ export interface Integration {
 export interface IntegrationCreate {
   name: string
   description?: string
-  connector_type: 'webhook' | 'batch_csv' | 'batch_json'
+  connector_type: 'webhook' | 'batch_csv' | 'batch_json' | 'api_pull'
   config?: Record<string, unknown>
   tags?: string[]
   entity_id?: string
@@ -90,6 +90,7 @@ export interface IntegrationUpdate {
   status?: 'active' | 'paused'
   config?: Record<string, unknown>
   tags?: string[]
+  entity_id?: string | null
 }
 
 export interface TransformCreate {
@@ -256,6 +257,8 @@ export const api = {
       upload<IngestResponse>(`/integrations/${id}/batch`, file),
     getRuns: (id: string) =>
       request<IntegrationRun[]>(`/integrations/${id}/runs`),
+    trigger: (id: string) =>
+      request<IngestResponse>(`/integrations/${id}/trigger`, { method: 'POST' }),
   },
 
   transforms: {

@@ -133,10 +133,15 @@ const STARTERS = [
   'Which fields contain PII data?',
 ]
 
-export default function ChatPage() {
+interface ChatPageProps {
+  messages: ChatMessage[]
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+  input: string
+  setInput: React.Dispatch<React.SetStateAction<string>>
+}
+
+export default function ChatPage({ messages, setMessages, input, setInput }: ChatPageProps) {
   const [token, setTokenState] = useState(getToken)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -146,6 +151,7 @@ export default function ChatPage() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
   const handleTokenChange = (t: string) => { setToken(t); setTokenState(t); setMessages([]); setError(null) }
+  const handleNewChat = () => { setMessages([]); setInput(''); setError(null) }
 
   const sendMessage = async () => {
     const text = input.trim()
@@ -209,6 +215,15 @@ export default function ChatPage() {
           <span className="font-mono text-[11px] text-j-dim ml-3">Ask questions about your data</span>
         </div>
         <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              onClick={handleNewChat}
+              className="px-3 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-border text-j-dim hover:border-j-accent hover:text-j-accent transition-colors"
+              title="Clear conversation and start fresh"
+            >
+              + New
+            </button>
+          )}
           {DEMO_TOKENS.map((t) => (
             <button
               key={t.value}
@@ -283,8 +298,8 @@ export default function ChatPage() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about your data… (Enter to send, Shift+Enter for newline)"
-            rows={2}
-            className="flex-1 resize-none rounded border border-j-border bg-j-surface2 text-j-text text-sm font-mono px-3 py-2.5 placeholder-j-dim focus:outline-none focus:border-j-accent transition-colors"
+            rows={4}
+            className="flex-1 resize-y min-h-[6rem] rounded border border-j-border bg-j-surface2 text-j-text text-sm font-mono px-3 py-2.5 placeholder-j-dim focus:outline-none focus:border-j-accent transition-colors"
           />
           <button
             onClick={sendMessage}

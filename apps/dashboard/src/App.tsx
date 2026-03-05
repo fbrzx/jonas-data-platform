@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import CataloguePage from './pages/CataloguePage'
@@ -7,6 +7,7 @@ import TransformsPage from './pages/TransformsPage'
 import ChatPage from './pages/ChatPage'
 import LineagePage from './pages/LineagePage'
 import DashboardPage from './pages/DashboardPage'
+import type { ChatMessage } from './lib/api'
 
 const navItems = [
   { to: '/',             label: 'Dashboard',    glyph: '◉' },
@@ -87,6 +88,9 @@ function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+
   return (
     <BrowserRouter>
       <TokenWatcher />
@@ -97,7 +101,14 @@ export default function App() {
             <Layout>
               <Routes>
                 <Route index             element={<DashboardPage />} />
-                <Route path="chat"         element={<ChatPage />} />
+                <Route path="chat"         element={
+                  <ChatPage
+                    messages={chatMessages}
+                    setMessages={setChatMessages}
+                    input={chatInput}
+                    setInput={setChatInput}
+                  />
+                } />
                 <Route path="catalogue"   element={<CataloguePage />} />
                 <Route path="transforms"  element={<TransformsPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />
