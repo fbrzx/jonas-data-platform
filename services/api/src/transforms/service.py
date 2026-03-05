@@ -124,7 +124,7 @@ def update_transform(
     values = list(db_updates.values()) + [_now(), transform_id, tenant_id]
     try:
         conn.execute(
-            f"UPDATE transforms.transform SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608
+            f"UPDATE transforms.transform SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608 E501
             values,
         )
     except Exception as exc:

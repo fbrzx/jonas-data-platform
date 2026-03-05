@@ -86,7 +86,7 @@ def update_integration(
     set_clauses = ", ".join(f"{col} = ?" for col in db_updates)
     values = list(db_updates.values()) + [_now(), integration_id, tenant_id]
     conn.execute(
-        f"UPDATE integrations.integration SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608
+        f"UPDATE integrations.integration SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608 E501
         values,
     )
     return get_integration(integration_id, tenant_id)
