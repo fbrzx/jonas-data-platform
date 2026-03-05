@@ -36,7 +36,10 @@ jobs:
         env:
           # Dummy values so config doesn't fail to load; tests use in-memory DuckDB
           MOTHERDUCK_TOKEN: test
-          CLAUDE_API_KEY: test
+          LLM_PROVIDER: ollama
+          LLM_MODEL: llama3.2
+          OLLAMA_BASE_URL: http://localhost:11434/v1
+          OLLAMA_API_KEY: test
 
   # ── TypeScript: type-check + lint + build ──────────────────────────────────
   dashboard:

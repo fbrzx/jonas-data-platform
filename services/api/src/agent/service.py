@@ -1,4 +1,4 @@
-"""Claude API integration — agentic chat with tool use.
+"""LLM provider integration — agentic chat with tool use.
 
 Phase 2 additions:
 - Dynamic system prompt with live catalogue context (NL-to-SQL awareness)
@@ -14,10 +14,9 @@ import re
 from collections.abc import Generator
 from typing import Any
 
-import anthropic
-
 from src.agent.inference import infer_from_csv, infer_from_json
 from src.agent.pii import mask_rows
+from src.agent.provider import build_provider_client
 from src.agent.tools import TOOLS
 from src.config import settings
 from src.db.connection import get_conn
@@ -32,6 +31,18 @@ _ROLE_ALLOWED_LAYERS: dict[str, set[str]] = {
 }
 
 _LAYER_PATTERN = re.compile(r"\b(bronze|silver|gold)\.\w+", re.IGNORECASE)
+
+_OPENAI_TOOLS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description", ""),
+            "parameters": tool["input_schema"],
+        },
+    }
+    for tool in TOOLS
+]
 
 
 def _check_sql_scope(sql: str, role: str) -> str | None:
@@ -263,39 +274,75 @@ def chat(
     Builds a live system prompt from the catalogue, then loops until
     the model stops calling tools.
     """
-    client = anthropic.Anthropic(api_key=settings.claude_api_key or None)
+    provider_client = build_provider_client()
     system_prompt = _build_system_prompt(tenant_id, role)
-    conversation = list(messages)
+    conversation: list[dict[str, Any]] = [
+        {
+            "role": str(msg.get("role", "user")),
+            "content": str(msg.get("content", "")),
+        }
+        for msg in messages
+    ]
 
     while True:
-        response = client.messages.create(
-            model=settings.claude_model,
+        response = provider_client.client.chat.completions.create(
+            model=settings.llm_model,
             max_tokens=max_tokens,
-            system=system_prompt,
-            tools=TOOLS,  # type: ignore[arg-type]
-            messages=conversation,
+            messages=[{"role": "system", "content": system_prompt}, *conversation],
+            tools=_OPENAI_TOOLS,
+            tool_choice="auto",
+            **provider_client.request_overrides,
         )
 
-        if response.stop_reason != "tool_use":
-            text = next((b.text for b in response.content if hasattr(b, "text")), "")
-            return {"role": "assistant", "content": text}
+        if not response.choices:
+            return {"role": "assistant", "content": "No response from the model."}
 
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
+        assistant_message = response.choices[0].message
+        tool_calls = assistant_message.tool_calls or []
+
+        if not tool_calls:
+            return {"role": "assistant", "content": assistant_message.content or ""}
+
+        assistant_turn: dict[str, Any] = {
+            "role": "assistant",
+            "content": assistant_message.content or "",
+            "tool_calls": [
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.function.name,
+                        "arguments": call.function.arguments,
+                    },
+                }
+                for call in tool_calls
+            ],
+        }
+        conversation.append(assistant_turn)
+
+        for call in tool_calls:
+            try:
+                tool_input = json.loads(call.function.arguments or "{}")
+                if not isinstance(tool_input, dict):
+                    raise ValueError("Tool arguments must be a JSON object.")
+            except Exception as exc:
+                result = json.dumps({"error": f"Invalid tool arguments: {exc}"})
+            else:
                 result = _run_tool(
-                    block.name,
-                    block.input,  # type: ignore[arg-type]
+                    call.function.name,
+                    tool_input,
                     tenant_id,
                     role,
                     user_id,
                 )
-                tool_results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": result}
-                )
 
-        conversation.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
-        conversation.append({"role": "user", "content": tool_results})
+            conversation.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": result,
+                }
+            )
 
 
 def stream_chat(
@@ -312,49 +359,113 @@ def stream_chat(
     - ``{"type": "delta", "text": "<token>"}`` — text token from model
     - ``{"type": "done"}`` — conversation turn complete
     """
-    client = anthropic.Anthropic(api_key=settings.claude_api_key or None)
+    provider_client = build_provider_client()
     system_prompt = _build_system_prompt(tenant_id, role)
-    conversation = list(messages)
+    conversation: list[dict[str, Any]] = [
+        {
+            "role": str(msg.get("role", "user")),
+            "content": str(msg.get("content", "")),
+        }
+        for msg in messages
+    ]
 
     while True:
-        with client.messages.stream(
-            model=settings.claude_model,
+        stream = provider_client.client.chat.completions.create(
+            model=settings.llm_model,
             max_tokens=max_tokens,
-            system=system_prompt,
-            tools=TOOLS,  # type: ignore[arg-type]
-            messages=conversation,
-        ) as stream:
-            for event in stream:
-                etype = getattr(event, "type", None)
-                if etype == "content_block_start":
-                    block = getattr(event, "content_block", None)
-                    if block and getattr(block, "type", None) == "tool_use":
-                        yield f"data: {json.dumps({'type': 'tool', 'name': block.name})}\n\n"
-                elif etype == "content_block_delta":
-                    delta = getattr(event, "delta", None)
-                    if delta and getattr(delta, "type", None) == "text_delta":
-                        yield f"data: {json.dumps({'type': 'delta', 'text': delta.text})}\n\n"
+            messages=[{"role": "system", "content": system_prompt}, *conversation],
+            tools=_OPENAI_TOOLS,
+            tool_choice="auto",
+            stream=True,
+            **provider_client.request_overrides,
+        )
 
-            message = stream.get_final_message()
+        assistant_text_parts: list[str] = []
+        partial_tool_calls: dict[int, dict[str, Any]] = {}
 
-        if message.stop_reason != "tool_use":
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+
+            delta = chunk.choices[0].delta
+
+            if delta.content:
+                assistant_text_parts.append(delta.content)
+                yield f"data: {json.dumps({'type': 'delta', 'text': delta.content})}\n\n"
+
+            if not delta.tool_calls:
+                continue
+
+            for tool_delta in delta.tool_calls:
+                index = tool_delta.index if tool_delta.index is not None else 0
+                partial = partial_tool_calls.setdefault(
+                    index,
+                    {"id": "", "name": "", "arguments_parts": []},
+                )
+
+                if tool_delta.id:
+                    partial["id"] = tool_delta.id
+
+                if tool_delta.function:
+                    if tool_delta.function.name:
+                        partial["name"] = tool_delta.function.name
+                    if tool_delta.function.arguments:
+                        partial["arguments_parts"].append(
+                            tool_delta.function.arguments
+                        )
+
+        if not partial_tool_calls:
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return
 
-        # Process tool calls and loop for next model turn
-        tool_results = []
-        for block in message.content:
-            if block.type == "tool_use":
+        ordered = [partial_tool_calls[i] for i in sorted(partial_tool_calls)]
+        assistant_tool_calls: list[dict[str, Any]] = []
+        for idx, partial in enumerate(ordered):
+            call_id = partial["id"] or f"tool_call_{idx}"
+            call_name = partial["name"] or ""
+            call_args = "".join(partial["arguments_parts"]) or "{}"
+            assistant_tool_calls.append(
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": call_name,
+                        "arguments": call_args,
+                    },
+                }
+            )
+
+        conversation.append(
+            {
+                "role": "assistant",
+                "content": "".join(assistant_text_parts),
+                "tool_calls": assistant_tool_calls,
+            }
+        )
+
+        for call in assistant_tool_calls:
+            tool_name = str(call["function"]["name"])
+            yield f"data: {json.dumps({'type': 'tool', 'name': tool_name})}\n\n"
+
+            try:
+                tool_input = json.loads(str(call["function"]["arguments"]) or "{}")
+                if not isinstance(tool_input, dict):
+                    raise ValueError("Tool arguments must be a JSON object.")
+            except Exception as exc:
+                result = json.dumps({"error": f"Invalid tool arguments: {exc}"})
+            else:
                 result = _run_tool(
-                    block.name,
-                    block.input,  # type: ignore[arg-type]
+                    tool_name,
+                    tool_input,
                     tenant_id,
                     role,
                     user_id,
                 )
-                tool_results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": result}
-                )
 
-        conversation.append({"role": "assistant", "content": message.content})  # type: ignore[arg-type]
-        conversation.append({"role": "user", "content": tool_results})
+            conversation.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": str(call["id"]),
+                    "content": result,
+                }
+            )
