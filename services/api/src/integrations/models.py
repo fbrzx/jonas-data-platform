@@ -25,6 +25,15 @@ class IntegrationRead(IntegrationCreate):
     updated_at: datetime
 
 
+class IntegrationUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None   # active | paused
+    config: dict[str, Any] | None = None
+    tags: list[str] | None = None
+    # connector_type deliberately excluded — immutable
+
+
 class WebhookPayload(BaseModel):
     source: str
     data: dict[str, Any] | list[Any]

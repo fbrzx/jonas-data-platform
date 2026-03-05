@@ -161,6 +161,52 @@ def create_fields_bulk(
     return created
 
 
+def get_field(field_id: str, entity_id: str) -> dict[str, Any] | None:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM catalogue.entity_field WHERE id = ? AND entity_id = ?",
+        [field_id, entity_id],
+    ).fetchone()
+    if not row:
+        return None
+    cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+    return dict(zip(cols, row))
+
+
+def update_field(
+    field_id: str, entity_id: str, data: dict[str, Any]
+) -> dict[str, Any] | None:
+    existing = get_field(field_id, entity_id)
+    if not existing:
+        return None
+
+    _ALLOWED = {"data_type", "nullable", "is_pii", "description"}
+    db_updates: dict[str, Any] = {k: v for k, v in data.items() if k in _ALLOWED and v is not None}
+
+    if not db_updates:
+        return existing
+
+    conn = get_conn()
+    set_clauses = ", ".join(f"{col} = ?" for col in db_updates)
+    values = list(db_updates.values()) + [field_id, entity_id]
+    conn.execute(
+        f"UPDATE catalogue.entity_field SET {set_clauses} WHERE id = ? AND entity_id = ?",  # noqa: S608
+        values,
+    )
+    return get_field(field_id, entity_id)
+
+
+def delete_field(field_id: str, entity_id: str) -> bool:
+    existing = get_field(field_id, entity_id)
+    if not existing:
+        return False
+    get_conn().execute(
+        "DELETE FROM catalogue.entity_field WHERE id = ? AND entity_id = ?",
+        [field_id, entity_id],
+    )
+    return True
+
+
 # ── Catalogue context for NL-to-SQL ─────────────────────────────────────────
 
 

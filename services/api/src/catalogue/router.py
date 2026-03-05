@@ -80,6 +80,28 @@ async def create_entity_fields(
     )
 
 
+@router.patch("/entities/{entity_id}/fields/{field_id}")
+async def update_entity_field(
+    entity_id: UUID, field_id: UUID, body: dict[str, Any], request: Request
+) -> dict[str, Any]:
+    user = _user(request)
+    require_permission(user, Resource.CATALOGUE, Action.WRITE)
+    result = service.update_field(str(field_id), str(entity_id), body)
+    if not result:
+        raise HTTPException(status_code=404, detail="Field not found")
+    return result
+
+
+@router.delete("/entities/{entity_id}/fields/{field_id}", status_code=204)
+async def delete_entity_field(
+    entity_id: UUID, field_id: UUID, request: Request
+) -> None:
+    user = _user(request)
+    require_permission(user, Resource.CATALOGUE, Action.WRITE)
+    if not service.delete_field(str(field_id), str(entity_id)):
+        raise HTTPException(status_code=404, detail="Field not found")
+
+
 @router.get("/entities/{entity_id}/preview")
 async def preview_entity(
     entity_id: UUID, request: Request, limit: int = 20

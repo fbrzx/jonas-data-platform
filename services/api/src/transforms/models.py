@@ -34,6 +34,15 @@ class TransformExecuteResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class TransformUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    sql: str | None = None           # only respected when status=draft
+    source_layer: str | None = None  # only respected when status=draft
+    target_layer: str | None = None  # only respected when status=draft
+    tags: list[str] | None = None
+
+
 class ApprovalAction(BaseModel):
     action: str  # approve | reject
     comment: str = ""

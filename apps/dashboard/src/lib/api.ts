@@ -84,6 +84,45 @@ export interface IntegrationCreate {
   entity_id?: string
 }
 
+export interface IntegrationUpdate {
+  name?: string
+  description?: string
+  status?: 'active' | 'paused'
+  config?: Record<string, unknown>
+  tags?: string[]
+}
+
+export interface TransformCreate {
+  name: string
+  description?: string
+  source_layer: string
+  target_layer: string
+  sql: string
+  tags?: string[]
+}
+
+export interface TransformUpdate {
+  name?: string
+  description?: string
+  sql?: string
+  source_layer?: string
+  target_layer?: string
+  tags?: string[]
+}
+
+export interface FieldUpdate {
+  data_type?: string
+  nullable?: boolean
+  is_pii?: boolean
+  description?: string
+}
+
+export interface EntityUpdate {
+  name?: string
+  description?: string
+  tags?: string[]
+}
+
 export interface IngestResponse {
   rows_received: number
   rows_landed: number
@@ -189,12 +228,23 @@ export const api = {
     get: (id: string) => request<Entity>(`/catalogue/entities/${id}`),
     getFields: (id: string) => request<EntityField[]>(`/catalogue/entities/${id}/fields`),
     preview: (id: string) => request<PreviewResult>(`/catalogue/entities/${id}/preview`),
+    update: (id: string, body: EntityUpdate) =>
+      request<Entity>(`/catalogue/entities/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    updateField: (entityId: string, fieldId: string, body: FieldUpdate) =>
+      request<EntityField>(`/catalogue/entities/${entityId}/fields/${fieldId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    deleteField: (entityId: string, fieldId: string) =>
+      request<void>(`/catalogue/entities/${entityId}/fields/${fieldId}`, { method: 'DELETE' }),
   },
 
   integrations: {
     list: () => request<Integration[]>('/integrations'),
     create: (body: IntegrationCreate) =>
       request<Integration>('/integrations', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: IntegrationUpdate) =>
+      request<Integration>(`/integrations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) =>
       request<void>(`/integrations/${id}`, { method: 'DELETE' }),
     sendWebhook: (id: string, data: unknown, metadata?: Record<string, unknown>) =>
@@ -211,6 +261,10 @@ export const api = {
   transforms: {
     list: () => request<Transform[]>('/transforms'),
     get: (id: string) => request<Transform>(`/transforms/${id}`),
+    create: (body: TransformCreate) =>
+      request<Transform>('/transforms', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: TransformUpdate) =>
+      request<Transform>(`/transforms/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     approve: (id: string, action: 'approve' | 'reject') =>
       request<Transform>(`/transforms/${id}/approval`, {
         method: 'POST',
