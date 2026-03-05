@@ -19,7 +19,8 @@ WITH parsed AS (
         json_extract_string(payload, '$.customer_id') AS customer_id,
         json_extract_string(payload, '$.status') AS status,
         TRY_CAST(json_extract_string(payload, '$.created_at') AS TIMESTAMP) AS created_at,
-        COALESCE(NULLIF(json_extract_string(payload, '$.shipping_country'), ''), 'UNKNOWN') AS shipping_country,
+        COALESCE(NULLIF(json_extract_string(payload, '$.shipping_country'), ''), 'UNKNOWN')
+            AS shipping_country,
         TRY_CAST(json_extract(payload, '$.total') AS DOUBLE) AS total_usd
     FROM bronze.orders
 )
