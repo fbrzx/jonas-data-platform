@@ -1,0 +1,71 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  # ── Python: lint + test ────────────────────────────────────────────────────
+  python:
+    name: Python (ruff + pytest)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" -q
+
+      - name: Lint (ruff)
+        run: python -m ruff check src
+
+      - name: Test (pytest)
+        run: python -m pytest
+        env:
+          # Dummy values so config doesn't fail to load; tests use in-memory DuckDB
+          MOTHERDUCK_TOKEN: test
+          CLAUDE_API_KEY: test
+
+  # ── TypeScript: type-check + lint + build ──────────────────────────────────
+  dashboard:
+    name: Dashboard (tsc + eslint + build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/dashboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Lint (eslint)
+        run: pnpm run lint
+
+      - name: Build (tsc + vite)
+        run: pnpm run build
