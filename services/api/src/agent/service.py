@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Generator
 from typing import Any
 
 import anthropic
@@ -294,4 +295,66 @@ def chat(
                 )
 
         conversation.append({"role": "assistant", "content": response.content})  # type: ignore[arg-type]
+        conversation.append({"role": "user", "content": tool_results})
+
+
+def stream_chat(
+    messages: list[dict[str, Any]],
+    tenant_id: str,
+    role: str = "viewer",
+    user_id: str = "unknown",
+    max_tokens: int = 4096,
+) -> Generator[str, None, None]:
+    """Stream an agentic conversation turn as SSE-formatted events.
+
+    Emits three event types:
+    - ``{"type": "tool", "name": "<tool_name>"}`` — tool being invoked
+    - ``{"type": "delta", "text": "<token>"}`` — text token from model
+    - ``{"type": "done"}`` — conversation turn complete
+    """
+    client = anthropic.Anthropic(api_key=settings.claude_api_key or None)
+    system_prompt = _build_system_prompt(tenant_id, role)
+    conversation = list(messages)
+
+    while True:
+        with client.messages.stream(
+            model=settings.claude_model,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            tools=TOOLS,  # type: ignore[arg-type]
+            messages=conversation,
+        ) as stream:
+            for event in stream:
+                etype = getattr(event, "type", None)
+                if etype == "content_block_start":
+                    block = getattr(event, "content_block", None)
+                    if block and getattr(block, "type", None) == "tool_use":
+                        yield f"data: {json.dumps({'type': 'tool', 'name': block.name})}\n\n"
+                elif etype == "content_block_delta":
+                    delta = getattr(event, "delta", None)
+                    if delta and getattr(delta, "type", None) == "text_delta":
+                        yield f"data: {json.dumps({'type': 'delta', 'text': delta.text})}\n\n"
+
+            message = stream.get_final_message()
+
+        if message.stop_reason != "tool_use":
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return
+
+        # Process tool calls and loop for next model turn
+        tool_results = []
+        for block in message.content:
+            if block.type == "tool_use":
+                result = _run_tool(
+                    block.name,
+                    block.input,  # type: ignore[arg-type]
+                    tenant_id,
+                    role,
+                    user_id,
+                )
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": block.id, "content": result}
+                )
+
+        conversation.append({"role": "assistant", "content": message.content})  # type: ignore[arg-type]
         conversation.append({"role": "user", "content": tool_results})
