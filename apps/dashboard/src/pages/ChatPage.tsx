@@ -153,13 +153,37 @@ export default function ChatPage() {
     const userMsg: ChatMessage = { role: 'user', content: text }
     const next = [...messages, userMsg]
     setMessages(next); setInput(''); setError(null); setLoading(true)
+
+    let streamedContent = ''
+    let hasStartedText = false
+
     try {
-      const res = await api.agent.chat(next)
-      setMessages([...next, res as ChatMessage])
+      for await (const event of api.agent.streamChat(next)) {
+        if (event.type === 'delta' && event.text) {
+          streamedContent += event.text
+          if (!hasStartedText) {
+            hasStartedText = true
+            setLoading(false)
+            setMessages([...next, { role: 'assistant', content: streamedContent }])
+          } else {
+            setMessages(prev => {
+              const updated = [...prev]
+              updated[updated.length - 1] = { role: 'assistant', content: streamedContent }
+              return updated
+            })
+          }
+        } else if (event.type === 'error') {
+          throw new Error(event.message ?? 'Stream error')
+        }
+      }
+      // If no text was streamed (e.g. pure tool call with no final text), ensure loading is off
+      if (!hasStartedText) {
+        setLoading(false)
+      }
     } catch (e) {
+      setLoading(false)
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
-      setLoading(false)
       setTimeout(() => textareaRef.current?.focus(), 50)
     }
   }

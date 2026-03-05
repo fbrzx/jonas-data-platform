@@ -154,13 +154,13 @@ export const api = {
     list: () => request<Transform[]>('/transforms'),
     get: (id: string) => request<Transform>(`/transforms/${id}`),
     approve: (id: string, action: 'approve' | 'reject') =>
-      request<Transform>(`/transforms/${id}/approve`, {
+      request<Transform>(`/transforms/${id}/approval`, {
         method: 'POST',
         body: JSON.stringify({ action }),
       }),
     execute: (id: string) =>
       request<ExecuteResult>(`/transforms/${id}/execute`, { method: 'POST' }),
-    lineage: () => request<{ nodes: LineageNode[]; edges: LineageEdge[] }>('/transforms/lineage'),
+    lineage: () => request<{ nodes: LineageNode[]; edges: LineageEdge[] }>('/transforms/lineage/graph'),
   },
 
   agent: {
@@ -169,5 +169,37 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ messages }),
       }),
+
+    async *streamChat(messages: ChatMessage[]): AsyncGenerator<{ type: string; text?: string; name?: string; message?: string }> {
+      const res = await fetch('/api/agent/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ messages }),
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText)
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              yield JSON.parse(line.slice(6)) as { type: string; text?: string; name?: string; message?: string }
+            } catch { /* skip malformed lines */ }
+          }
+        }
+      }
+    },
   },
 }

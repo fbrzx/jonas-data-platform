@@ -97,21 +97,64 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         f"{transform['target_layer']}.{transform['name'].lower().replace(' ', '_')}"
     )
 
+    run_id = str(uuid.uuid4())
+    started_at = _now()
+
+    # Record run start
+    conn.execute(
+        """
+        INSERT INTO transforms.transform_run
+            (id, transform_id, status, started_at)
+        VALUES (?, ?, 'running', ?)
+        """,
+        [run_id, transform_id, started_at],
+    )
+
     try:
         conn.execute(transform["transform_sql"])
-        result = conn.fetchall()
-        rows_affected = len(result) if result else 0
+        # CTAS / DDL statements don't return rows — query the target table for count
+        try:
+            row = conn.execute(
+                f"SELECT COUNT(*) FROM {target_table}"  # noqa: S608
+            ).fetchone()
+            rows_affected = int(row[0]) if row else 0
+        except Exception:
+            rows_affected = 0
     except Exception as exc:
         errors.append(str(exc))
 
     duration_ms = (time.monotonic() - start) * 1000
+    completed_at = _now()
+    run_status = "failed" if errors else "success"
+
+    # Update run record
+    conn.execute(
+        """
+        UPDATE transforms.transform_run
+        SET status = ?, completed_at = ?, rows_produced = ?, error_detail = ?
+        WHERE id = ?
+        """,
+        [
+            run_status,
+            completed_at,
+            rows_affected,
+            json.dumps({"errors": errors}) if errors else None,
+            run_id,
+        ],
+    )
+
+    # Stamp last_run_at on the transform itself
+    conn.execute(
+        "UPDATE transforms.transform SET last_run_at = ? WHERE id = ?",
+        [completed_at, transform_id],
+    )
 
     return {
         "transform_id": transform_id,
         "rows_affected": rows_affected,
         "duration_ms": round(duration_ms, 2),
         "target_table": target_table,
-        "executed_at": _now(),
+        "executed_at": completed_at,
         "errors": errors,
     }
 
