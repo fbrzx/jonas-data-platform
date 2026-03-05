@@ -13,6 +13,8 @@ from src.integrations.models import (
     WebhookPayload,
 )
 
+MAX_RUNS = 50
+
 router = APIRouter()
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
@@ -82,6 +84,12 @@ async def delete_integration(integration_id: str, request: Request) -> None:
     service.delete_integration(integration_id, _tenant(request))
 
 
+@router.get("/{integration_id}/runs")
+async def list_runs(integration_id: str, request: Request) -> list[dict[str, Any]]:
+    require_permission(_user(request), Resource.INTEGRATION, Action.READ)
+    return service.list_runs(integration_id, _tenant(request), limit=MAX_RUNS)
+
+
 @router.post("/ingest/webhook", response_model=BatchIngestResponse)
 async def ingest_webhook(payload: WebhookPayload, request: Request) -> dict[str, Any]:
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
@@ -102,7 +110,7 @@ async def ingest_via_integration(
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     tenant_id = _tenant(request)
     source = _resolve_source(integration_id, tenant_id, "webhook")
-    return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id)
+    return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id, integration_id)
 
 
 @router.post("/ingest/batch", response_model=BatchIngestResponse)
@@ -149,5 +157,5 @@ async def ingest_batch_via_integration(
     source = _resolve_source(integration_id, tenant_id, connector_type)
 
     if connector_type == "batch_csv":
-        return ingest.land_batch_csv(source, content, tenant_id)
-    return ingest.land_batch_json(source, content, tenant_id)
+        return ingest.land_batch_csv(source, content, tenant_id, integration_id)
+    return ingest.land_batch_json(source, content, tenant_id, integration_id)

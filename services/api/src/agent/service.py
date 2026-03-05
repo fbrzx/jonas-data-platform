@@ -70,6 +70,45 @@ You help data engineers and analysts ingest, clean, and query their data.
 - Draft SQL transforms for the bronze→silver→gold pipeline (draft_transform)
 - List and create data integrations (list_integrations, create_integration)
 - Ingest data directly into the bronze layer via webhook (ingest_webhook)
+- Check import run history to diagnose failures (get_integration_runs)
+
+## Data import flow — follow these steps precisely
+
+When a user wants to import data, guide them through this exact sequence:
+
+### Step 1 — Discover existing integrations
+Call `list_integrations`. If a suitable integration already exists, skip to Step 4.
+Tell the user: "I found integration '<name>' (type: <connector_type>, id: <id>).
+We can use this to land your data into bronze.<table_name>."
+
+### Step 2 — (If no integration) Infer schema from sample data
+Ask the user to provide a sample record (JSON object) or CSV header row.
+Call `infer_schema` with their sample. Present the detected fields and PII flags.
+Confirm: "I'll register this as entity '<name>' in the bronze layer with these fields: ..."
+
+### Step 3 — Register entity + create integration
+After user confirms, call `register_entity`, then `create_integration` linking to that entity.
+For webhook integrations, tell the user the exact endpoint to POST to:
+  POST /api/v1/integrations/<integration_id>/webhook
+  Headers: Authorization: Bearer <token>
+  Body: {"data": <your_payload>}
+For batch (CSV/JSON) integrations, tell the user to upload via the dashboard or:
+  POST /api/v1/integrations/<integration_id>/batch
+  Headers: Authorization: Bearer <token>
+  Body: multipart/form-data with field 'file' containing the CSV or JSON file
+
+### Step 4 — Ingest the data
+For webhook: call `ingest_webhook` with the integration_id and the user's data.
+For batch: instruct the user to upload the file via the dashboard Integrations page
+(click the Upload button on the integration card) or use the batch API endpoint above.
+
+### Step 5 — Verify the import
+Call `get_integration_runs` to confirm rows landed. If there are failures, explain
+the error_detail and suggest fixes.
+
+### Step 6 — (Optional) Preview and transform
+Call `preview_entity` to show the user their landed data.
+If cleaning is needed, offer to `draft_transform` to promote to silver/gold.
 
 ## Rules
 - Only generate DuckDB-compatible SQL. Reference tables as `layer.entity_name`
@@ -80,6 +119,8 @@ You help data engineers and analysts ingest, clean, and query their data.
 - PII fields are automatically masked in query results — you don't need to handle this yourself.
 - Always confirm with the user before registering an entity, drafting a transform,
   or creating an integration.
+- When giving API endpoint instructions, always show the exact URL, required headers,
+  and a concrete example body — never make the user guess.
 - Be concise. Lead with the answer or action, then explain if needed.
 
 {catalogue_context}
@@ -319,10 +360,26 @@ def _run_tool(
                 "status": i.get("status"),
                 "description": i.get("description", ""),
                 "entity_id": i.get("target_entity_id"),
+                "webhook_endpoint": f"/api/v1/integrations/{i['id']}/webhook"
+                if i.get("connector_type") == "webhook"
+                else None,
+                "batch_endpoint": f"/api/v1/integrations/{i['id']}/batch"
+                if i.get("connector_type") in ("batch_csv", "batch_json")
+                else None,
             }
             for i in integrations
         ]
         return json.dumps(summary)
+
+    # ── get_integration_runs ─────────────────────────────────────────────────
+    if tool_name == "get_integration_runs":
+        from src.integrations.service import list_runs
+
+        integration_id = tool_input.get("integration_id", "")
+        if not integration_id:
+            return json.dumps({"error": "integration_id is required."})
+        runs = list_runs(integration_id, tenant_id, limit=20)
+        return json.dumps(runs, default=str)
 
     # ── create_integration ───────────────────────────────────────────────────
     if tool_name == "create_integration":

@@ -163,7 +163,9 @@ TOOLS: list[dict[str, Any]] = [
         "name": "list_integrations",
         "description": (
             "List all data integrations configured for the current tenant. "
-            "Returns integration names, connector types, statuses, and IDs."
+            "Returns integration names, connector types (webhook/batch_csv/batch_json), "
+            "statuses, linked entity IDs, and integration IDs. "
+            "Call this first when the user wants to import data, to see what exists."
         ),
         "input_schema": {
             "type": "object",
@@ -172,13 +174,35 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "get_integration_runs",
+        "description": (
+            "Return the recent run history for a specific integration. "
+            "Each run shows status (success/partial/failed), timestamps, "
+            "records_in, records_out, records_rejected, and any error detail. "
+            "Use this to diagnose import failures or confirm that data landed successfully."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "integration_id": {
+                    "type": "string",
+                    "description": "UUID of the integration",
+                },
+            },
+            "required": ["integration_id"],
+        },
+    },
+    {
         "name": "ingest_webhook",
         "description": (
-            "Send a data payload into the bronze layer via webhook ingestion. "
-            "Prefer supplying integration_id (from list_integrations or create_integration) "
-            "so the source table is automatically derived from the integration's name. "
-            "Fall back to an explicit source name only when no integration exists. "
-            "Always confirm the data and target with the user before ingesting."
+            "Send a JSON data payload into the bronze layer via webhook ingestion. "
+            "Step 1: call list_integrations to find or confirm the target integration. "
+            "Step 2: if no integration exists, create one with create_integration first. "
+            "Step 3: show the user exactly what data will be sent and to which table, then confirm. "
+            "Step 4: call this tool with integration_id (preferred) or an explicit source name. "
+            "The bronze table name is derived from the integration's linked entity name, "
+            "or from the integration name if no entity is linked. "
+            "After ingesting, call get_integration_runs to verify rows landed successfully."
         ),
         "input_schema": {
             "type": "object",
@@ -187,15 +211,15 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": (
                         "UUID of an existing webhook integration. "
-                        "When provided, the integration's name is used as the bronze "
-                        "table source — no need to specify source separately."
+                        "When provided, the source table is automatically derived — "
+                        "no need to specify source separately."
                     ),
                 },
                 "source": {
                     "type": "string",
                     "description": (
-                        "Fallback source identifier (snake_case) used as the bronze table name "
-                        "when integration_id is not available."
+                        "Fallback source identifier (snake_case, e.g. 'customer_events') "
+                        "used as the bronze table name only when integration_id is not available."
                     ),
                 },
                 "data": {
@@ -203,7 +227,7 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "metadata": {
                     "type": "object",
-                    "description": "Optional key-value metadata to attach to the record",
+                    "description": "Optional key-value metadata to attach to the record (e.g. source_system, batch_id)",
                 },
             },
             "required": ["data"],
@@ -212,45 +236,50 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "create_integration",
         "description": (
-            "Register a new data integration (e.g. webhook receiver or batch upload source). "
-            "When creating an integration for an existing catalogue entity, pass entity_id so the "
-            "integration is linked: the entity's name becomes the canonical bronze table source, "
-            "and preview_entity will query the same table that webhook data lands in. "
-            "Requires admin or analyst role. Always confirm with the user before creating."
+            "Register a new data integration (webhook receiver or batch file upload source). "
+            "Choose connector_type based on how data will arrive:\n"
+            "  - 'webhook': for real-time JSON events pushed via HTTP POST\n"
+            "  - 'batch_csv': for periodic CSV file uploads (max 50 MB)\n"
+            "  - 'batch_json': for periodic JSON file uploads (array or newline-delimited)\n"
+            "When creating an integration for an existing catalogue entity, pass entity_id so "
+            "the entity's name becomes the canonical bronze table — ingest and preview will "
+            "always refer to the same table. If no entity exists yet, create one with "
+            "register_entity first (infer_schema → register_entity → create_integration). "
+            "Requires admin or analyst role. Always confirm the name, type, and linked entity "
+            "with the user before creating."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "Short name for the integration (snake_case)",
+                    "description": "Short snake_case name for the integration (e.g. 'sales_orders_webhook')",
                 },
                 "description": {
                     "type": "string",
-                    "description": "What this integration ingests",
+                    "description": "What data this integration ingests",
                 },
                 "connector_type": {
                     "type": "string",
                     "enum": ["webhook", "batch_csv", "batch_json"],
-                    "description": "How data arrives",
+                    "description": "How data arrives: webhook (real-time JSON), batch_csv, or batch_json",
                 },
                 "entity_id": {
                     "type": "string",
                     "description": (
-                        "UUID of the catalogue entity this integration feeds. "
-                        "When set, the integration name is ignored for routing — "
-                        "the entity's name is used as the bronze table source instead, "
-                        "so catalogue metadata, preview, and ingest all refer to the same table."
+                        "UUID of the catalogue entity this integration feeds into. "
+                        "When set, the entity's name becomes the bronze table source, "
+                        "so catalogue metadata, preview, and ingest all use the same table."
                     ),
                 },
                 "config": {
                     "type": "object",
-                    "description": "Connector-specific configuration (e.g. source URL, auth)",
+                    "description": "Connector-specific config (e.g. {\"source_url\": \"...\", \"auth_header\": \"x-api-key\"})",
                 },
                 "tags": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional labels for grouping",
+                    "description": "Optional labels for grouping (e.g. ['ecommerce', 'realtime'])",
                 },
             },
             "required": ["name", "connector_type"],
