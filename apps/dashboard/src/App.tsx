@@ -5,12 +5,16 @@ import CataloguePage from './pages/CataloguePage'
 import IntegrationsPage from './pages/IntegrationsPage'
 import TransformsPage from './pages/TransformsPage'
 import ChatPage from './pages/ChatPage'
+import LineagePage from './pages/LineagePage'
+import DashboardPage from './pages/DashboardPage'
 
 const navItems = [
+  { to: '/',             label: 'Dashboard',    glyph: '◉' },
   { to: '/chat',         label: 'Chat',         glyph: '◈' },
   { to: '/catalogue',   label: 'Catalogue',    glyph: '◫' },
   { to: '/transforms',  label: 'Transforms',   glyph: '⟳' },
   { to: '/integrations',label: 'Integrations', glyph: '⌥' },
+  { to: '/lineage',     label: 'Lineage',      glyph: '⬡' },
 ]
 
 function TokenWatcher() {
@@ -47,6 +51,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             <li key={to}>
               <NavLink
                 to={to}
+                end={to === '/'}
                 className={({ isActive }) =>
                   `flex items-center gap-2.5 px-5 py-2.5 font-mono text-[11px] font-medium
                    tracking-[0.12em] uppercase transition-all duration-150 border-l-2 ${
@@ -91,25 +96,13 @@ export default function App() {
           element={
             <Layout>
               <Routes>
+                <Route index             element={<DashboardPage />} />
                 <Route path="chat"         element={<ChatPage />} />
-                <Route path="catalogue"    element={<CataloguePage />} />
-                <Route path="transforms"   element={<TransformsPage />} />
+                <Route path="catalogue"   element={<CataloguePage />} />
+                <Route path="transforms"  element={<TransformsPage />} />
                 <Route path="integrations" element={<IntegrationsPage />} />
-                <Route
-                  path="*"
-                  element={
-                    <div className="flex-1 overflow-auto p-8 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="font-mono text-[10px] text-j-dim tracking-[0.18em] uppercase mb-3">
-                          Jonas Data Platform
-                        </div>
-                        <p className="text-j-dim text-sm">
-                          Select a section from the sidebar.
-                        </p>
-                      </div>
-                    </div>
-                  }
-                />
+                <Route path="lineage"     element={<LineagePage />} />
+                <Route path="*"           element={<DashboardPage />} />
               </Routes>
             </Layout>
           }

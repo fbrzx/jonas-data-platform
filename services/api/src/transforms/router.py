@@ -76,3 +76,36 @@ async def execute_transform(transform_id: UUID, request: Request) -> dict[str, A
         return service.execute_transform(str(transform_id), _tenant(request))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/lineage/graph")
+async def lineage_graph(request: Request) -> dict[str, Any]:
+    """Return entities (nodes) and transforms (edges) for lineage visualisation."""
+    from src.catalogue.service import list_entities
+
+    require_permission(_user(request), Resource.TRANSFORM, Action.READ)
+    tenant_id = _tenant(request)
+    entities = list_entities(tenant_id)
+    transforms = service.list_transforms(tenant_id)
+
+    nodes = [
+        {
+            "id": e["id"],
+            "name": e["name"],
+            "layer": e.get("layer", "bronze"),
+            "description": e.get("description", ""),
+            "tags": e.get("tags", "[]"),
+        }
+        for e in entities
+    ]
+    edges = [
+        {
+            "id": t["id"],
+            "name": t["name"],
+            "source_layer": t.get("source_layer", "bronze"),
+            "target_layer": t.get("target_layer", "silver"),
+            "status": t.get("status", "draft"),
+        }
+        for t in transforms
+    ]
+    return {"nodes": nodes, "edges": edges}

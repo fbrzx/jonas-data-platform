@@ -174,6 +174,52 @@ def get_accessible_entities(tenant_id: str, role: str) -> list[dict[str, Any]]:
     return accessible
 
 
+def preview_entity(
+    entity_id: str, tenant_id: str, role: str = "viewer", limit: int = 20
+) -> dict[str, Any] | None:
+    """Return up to `limit` rows from the entity's DuckDB table with PII masking."""
+    entity = get_entity(entity_id, tenant_id)
+    if not entity:
+        return None
+
+    table_ref = f"{entity['layer']}.{entity['name']}"
+    fields = get_entity_fields(entity_id)
+    pii_field_names = {f["name"] for f in fields if f.get("is_pii")}
+    has_pii_access = role in ("owner", "admin")
+
+    conn = get_conn()
+    try:
+        rows_raw = conn.execute(
+            f"SELECT * FROM {table_ref} LIMIT {limit}"  # noqa: S608
+        ).fetchall()
+        cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+        rows = [dict(zip(cols, row)) for row in rows_raw]
+
+        if not has_pii_access and pii_field_names:
+            from src.agent.pii import mask_rows
+
+            rows = mask_rows(rows, pii_field_names, False)
+
+        return {
+            "entity": table_ref,
+            "columns": cols,
+            "rows": rows,
+            "count": len(rows),
+            "pii_masked": bool(pii_field_names and not has_pii_access),
+            "pii_fields": sorted(pii_field_names),
+        }
+    except Exception as exc:
+        return {
+            "entity": table_ref,
+            "columns": [],
+            "rows": [],
+            "count": 0,
+            "pii_masked": False,
+            "pii_fields": [],
+            "error": str(exc),
+        }
+
+
 def build_catalogue_context(tenant_id: str, role: str) -> str:
     """Return a compact text description of the catalogue for the system prompt."""
     entities = get_accessible_entities(tenant_id, role)

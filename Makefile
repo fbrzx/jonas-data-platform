@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build test lint up down reset logs shell seed
+.PHONY: help install build test lint up down reset logs shell seed dev demo
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 BOLD  := $(shell tput bold 2>/dev/null)
@@ -13,10 +13,12 @@ help:
 	@echo ""
 	@echo "$(CYAN)Setup$(RESET)"
 	@echo "  make install     Install all dependencies (pnpm + pip)"
-	@echo "  make seed        Generate sample data files"
+	@echo "  make seed        Generate and load all sample data"
 	@echo ""
 	@echo "$(CYAN)Development$(RESET)"
 	@echo "  make up          Build and start Docker services"
+	@echo "  make dev         Start dashboard dev server (:5173)"
+	@echo "  make demo        Full demo: up + seed (one command)"
 	@echo "  make down        Stop Docker services"
 	@echo "  make reset       Wipe data volumes and restart fresh"
 	@echo "  make logs        Tail API container logs"
@@ -36,6 +38,21 @@ install:
 seed:
 	cd services/api && python scripts/seed_data.py
 	cd services/api && python scripts/reset_demo.py
+
+dev:
+	cd apps/dashboard && pnpm dev
+
+demo: up
+	@echo "Waiting for API to be ready..."
+	@sleep 3
+	cd services/api && python scripts/seed_data.py
+	cd services/api && python scripts/reset_demo.py
+	@echo ""
+	@echo "$(BOLD)Demo ready!$(RESET)"
+	@echo "  API      → http://localhost:8000"
+	@echo "  Dashboard → run 'make dev' in another terminal"
+	@echo ""
+	@echo "Tokens: admin-token · analyst-token · viewer-token"
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 up:

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type Entity, type EntityField } from '../lib/api'
+import { api, type Entity, type EntityField, type PreviewResult } from '../lib/api'
 
 // ── Layer config ──────────────────────────────────────────────────────────────
 
@@ -63,15 +63,81 @@ function FieldTable({ fields }: { fields: EntityField[] }) {
   )
 }
 
+// ── Data preview grid ─────────────────────────────────────────────────────────
+
+function DataGrid({ result }: { result: PreviewResult }) {
+  if (result.error) {
+    return (
+      <p className="font-mono text-[11px] text-j-red px-4 py-3">
+        {result.error.includes('does not exist') || result.error.includes('not found')
+          ? 'table not populated yet — run a transform to load data'
+          : result.error}
+      </p>
+    )
+  }
+  if (!result.rows.length) {
+    return <p className="font-mono text-[11px] text-j-dim italic px-4 py-3">no rows yet</p>
+  }
+  return (
+    <div className="overflow-x-auto">
+      {result.pii_masked && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-j-red-dim border-b border-j-red">
+          <span className="font-mono text-[10px] text-j-red font-semibold tracking-wider">
+            PII MASKED · {result.pii_fields.join(', ')}
+          </span>
+        </div>
+      )}
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="border-b border-j-border">
+            {result.columns.map((col) => (
+              <th key={col} className={`px-4 py-2 text-left font-mono text-[10px] tracking-[0.1em] uppercase whitespace-nowrap ${result.pii_fields.includes(col) ? 'text-j-red' : 'text-j-dim'}`}>
+                {col}{result.pii_fields.includes(col) ? ' ⚠' : ''}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {result.rows.map((row, i) => (
+            <tr key={i} className="border-b border-j-border hover:bg-j-surface2 transition-colors">
+              {result.columns.map((col) => {
+                const v = row[col]
+                const raw = v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v)
+                const isPii = result.pii_fields.includes(col)
+                return (
+                  <td key={col} className={`px-4 py-2 font-mono max-w-[200px] truncate ${isPii ? 'text-j-red opacity-70' : 'text-j-text'}`} title={raw}>
+                    {raw}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="px-4 py-2 font-mono text-[10px] text-j-dim border-t border-j-border">
+        showing {result.count} row{result.count !== 1 ? 's' : ''}
+      </p>
+    </div>
+  )
+}
+
 // ── Entity row ────────────────────────────────────────────────────────────────
 
 function EntityRow({ entity }: { entity: Entity }) {
   const [open, setOpen] = useState(false)
-  const { data: fields, isLoading } = useQuery({
+  const [tab, setTab] = useState<'fields' | 'data'>('fields')
+
+  const { data: fields, isLoading: fieldsLoading } = useQuery({
     queryKey: ['entity-fields', entity.id],
     queryFn: () => api.catalogue.getFields(entity.id),
-    enabled: open,
+    enabled: open && tab === 'fields',
     staleTime: 60_000,
+  })
+  const { data: preview, isLoading: previewLoading } = useQuery({
+    queryKey: ['entity-preview', entity.id],
+    queryFn: () => api.catalogue.preview(entity.id),
+    enabled: open && tab === 'data',
+    staleTime: 30_000,
   })
 
   let tags: string[] = []
@@ -105,10 +171,35 @@ function EntityRow({ entity }: { entity: Entity }) {
 
       {open && (
         <div className="border-t border-j-border fade-up">
-          {isLoading
-            ? <p className="font-mono text-[11px] text-j-dim px-4 py-3">loading fields…</p>
-            : <FieldTable fields={fields ?? []} />
-          }
+          {/* Tabs */}
+          <div className="flex border-b border-j-border px-4 pt-1">
+            {(['fields', 'data'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`mr-4 pb-2 font-mono text-[10px] tracking-[0.12em] uppercase border-b-2 transition-colors ${
+                  tab === t
+                    ? 'border-j-accent text-j-accent'
+                    : 'border-transparent text-j-dim hover:text-j-text'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'fields' && (
+            fieldsLoading
+              ? <p className="font-mono text-[11px] text-j-dim px-4 py-3">loading…</p>
+              : <FieldTable fields={fields ?? []} />
+          )}
+          {tab === 'data' && (
+            previewLoading
+              ? <p className="font-mono text-[11px] text-j-dim px-4 py-3">loading preview…</p>
+              : preview
+                ? <DataGrid result={preview} />
+                : <p className="font-mono text-[11px] text-j-dim px-4 py-3">no data</p>
+          )}
         </div>
       )}
     </div>

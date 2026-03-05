@@ -75,7 +75,26 @@ async def create_entity_fields(
 ) -> list[dict[str, Any]]:
     user = _user(request)
     require_permission(user, Resource.CATALOGUE, Action.WRITE)
-    return service.create_fields_bulk(str(entity_id), body, str(user.get("user_id", "system")))
+    return service.create_fields_bulk(
+        str(entity_id), body, str(user.get("user_id", "system"))
+    )
+
+
+@router.get("/entities/{entity_id}/preview")
+async def preview_entity(
+    entity_id: UUID, request: Request, limit: int = 20
+) -> dict[str, Any]:
+    user = _user(request)
+    require_permission(user, Resource.CATALOGUE, Action.READ)
+    result = service.preview_entity(
+        str(entity_id),
+        _tenant(request),
+        role=str(user.get("role", "viewer")),
+        limit=min(limit, 100),
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return result
 
 
 @router.delete("/entities/{entity_id}", status_code=204)
