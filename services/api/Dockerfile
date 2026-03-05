@@ -25,7 +25,8 @@ RUN groupadd --gid 1001 appgroup \
 WORKDIR /app
 
 COPY --from=builder /build/dist/*.whl /tmp/
-RUN pip install --no-cache-dir /tmp/*.whl \
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+ && pip install --no-cache-dir /tmp/*.whl \
  && rm /tmp/*.whl
 
 # Application source

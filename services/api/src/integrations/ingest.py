@@ -20,6 +20,11 @@ def _bronze_table(source: str) -> str:
     return f"bronze.{safe}"
 
 
+def _safe_col(name: str) -> str:
+    """Sanitize a CSV column name for use as a SQL identifier."""
+    return "".join(c if c.isalnum() or c == "_" else "_" for c in name)
+
+
 def _ensure_bronze_schema(conn: Any) -> None:
     conn.execute("CREATE SCHEMA IF NOT EXISTS bronze")
 
@@ -78,8 +83,9 @@ def land_batch_csv(
             "errors": [],
         }
 
-    cols = list(rows[0].keys())
-    col_defs = ", ".join(f'"{c}" VARCHAR' for c in cols)
+    raw_cols = list(rows[0].keys())
+    cols = [_safe_col(c) for c in raw_cols]
+    col_defs = ", ".join(f"{c} VARCHAR" for c in cols)
     conn.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {table} (
@@ -97,7 +103,7 @@ def land_batch_csv(
     for i, row in enumerate(rows):
         try:
             values = [str(uuid.uuid4()), tenant_id, _now()] + [
-                row.get(c, "") for c in cols
+                row.get(c, "") for c in raw_cols
             ]
             conn.execute(
                 f"INSERT INTO {table} VALUES ({placeholders})", values

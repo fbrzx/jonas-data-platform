@@ -1,14 +1,20 @@
 """Agent (chat) API routes."""
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from slowapi import Limiter  # type: ignore[attr-defined]
+from slowapi.util import get_remote_address
 
 from src.agent import service
 from src.auth.permissions import Action, Resource, require_permission
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+_limiter = Limiter(key_func=get_remote_address)
 
 
 class ChatMessage(BaseModel):
@@ -27,7 +33,8 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest, request: Request) -> dict[str, Any]:
+@_limiter.limit("20/minute")
+async def chat(request: Request, body: ChatRequest) -> dict[str, Any]:
     user = request.state.user or {}
     require_permission(user, Resource.AGENT, Action.WRITE)
 
@@ -45,4 +52,5 @@ async def chat(body: ChatRequest, request: Request) -> dict[str, Any]:
         )
         return result
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("Agent chat error: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc

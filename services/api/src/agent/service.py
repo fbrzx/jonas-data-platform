@@ -10,6 +10,7 @@ Phase 2 additions:
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import anthropic
@@ -19,6 +20,31 @@ from src.agent.pii import mask_rows
 from src.agent.tools import TOOLS
 from src.config import settings
 from src.db.connection import get_conn
+
+# Layers each role is allowed to query
+_ROLE_ALLOWED_LAYERS: dict[str, set[str]] = {
+    "owner": {"bronze", "silver", "gold"},
+    "admin": {"bronze", "silver", "gold"},
+    "engineer": {"bronze", "silver", "gold"},
+    "analyst": {"silver", "gold"},
+    "viewer": {"gold"},
+}
+
+_LAYER_PATTERN = re.compile(r"\b(bronze|silver|gold)\.\w+", re.IGNORECASE)
+
+
+def _check_sql_scope(sql: str, role: str) -> str | None:
+    """Return an error message if SQL references a layer the role cannot access."""
+    allowed = _ROLE_ALLOWED_LAYERS.get(role, {"gold"})
+    for match in _LAYER_PATTERN.finditer(sql):
+        layer = match.group(1).lower()
+        if layer not in allowed:
+            return (
+                f"Access denied: your role ({role}) cannot query the {layer} layer. "
+                f"You have access to: {', '.join(sorted(allowed))}."
+            )
+    return None
+
 
 _BASE_SYSTEM_PROMPT = """\
 You are Jonas, an AI assistant embedded in a multi-tenant data platform.
@@ -154,6 +180,10 @@ def _run_tool(
         if not sql.upper().startswith("SELECT"):
             return json.dumps({"error": "Only SELECT statements are permitted."})
 
+        scope_error = _check_sql_scope(sql, role)
+        if scope_error:
+            return json.dumps({"error": scope_error})
+
         try:
             rows_raw = conn.execute(f"{sql} LIMIT {limit}").fetchall()
             cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
@@ -181,6 +211,17 @@ def _run_tool(
         entity = get_entity(entity_id, tenant_id)
         if not entity:
             return json.dumps({"error": "Entity not found"})
+
+        allowed_layers = _ROLE_ALLOWED_LAYERS.get(role, {"gold"})
+        if entity.get("layer") not in allowed_layers:
+            return json.dumps(
+                {
+                    "error": (
+                        f"Access denied: your role ({role}) cannot access the "
+                        f"{entity['layer']} layer."
+                    )
+                }
+            )
 
         table_ref = f"{entity['layer']}.{entity['name']}"
         try:

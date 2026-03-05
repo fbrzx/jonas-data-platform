@@ -14,6 +14,8 @@ from src.integrations.models import (
 
 router = APIRouter()
 
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 
 def _user(request: Request) -> dict[str, Any]:
     return request.state.user or {}
@@ -63,6 +65,8 @@ async def ingest_batch(
 ) -> dict[str, Any]:
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
     filename = file.filename or ""
 
     if filename.endswith(".csv"):
