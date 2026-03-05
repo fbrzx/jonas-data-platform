@@ -198,7 +198,8 @@ TOOLS: list[dict[str, Any]] = [
             "Send a JSON data payload into the bronze layer via webhook ingestion. "
             "Step 1: call list_integrations to find or confirm the target integration. "
             "Step 2: if no integration exists, create one with create_integration first. "
-            "Step 3: show the user exactly what data will be sent and to which table, then confirm. "
+            "Step 3: show the user exactly what data will be sent and to which table, "
+            "then confirm. "
             "Step 4: call this tool with integration_id (preferred) or an explicit source name. "
             "The bronze table name is derived from the integration's linked entity name, "
             "or from the integration name if no entity is linked. "
@@ -227,7 +228,10 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "metadata": {
                     "type": "object",
-                    "description": "Optional key-value metadata to attach to the record (e.g. source_system, batch_id)",
+                    "description": (
+                        "Optional key-value metadata to attach to the record "
+                        "(e.g. source_system, batch_id)"
+                    ),
                 },
             },
             "required": ["data"],
@@ -253,7 +257,10 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "Short snake_case name for the integration (e.g. 'sales_orders_webhook')",
+                    "description": (
+                        "Short snake_case name for the integration "
+                        "(e.g. 'sales_orders_webhook')"
+                    ),
                 },
                 "description": {
                     "type": "string",
@@ -262,7 +269,9 @@ TOOLS: list[dict[str, Any]] = [
                 "connector_type": {
                     "type": "string",
                     "enum": ["webhook", "batch_csv", "batch_json"],
-                    "description": "How data arrives: webhook (real-time JSON), batch_csv, or batch_json",
+                    "description": (
+                        "How data arrives: webhook (real-time JSON), batch_csv, or batch_json"
+                    ),
                 },
                 "entity_id": {
                     "type": "string",
@@ -274,7 +283,10 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "config": {
                     "type": "object",
-                    "description": "Connector-specific config (e.g. {\"source_url\": \"...\", \"auth_header\": \"x-api-key\"})",
+                    "description": (
+                        "Connector-specific config "
+                        "(e.g. {\"source_url\": \"...\", \"auth_header\": \"x-api-key\"})"
+                    ),
                 },
                 "tags": {
                     "type": "array",

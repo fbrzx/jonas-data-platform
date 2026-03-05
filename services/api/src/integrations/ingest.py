@@ -213,7 +213,9 @@ def land_batch_json(
 
     rejected = len(data) - total_landed
     status = "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
-    run_id = _record_run(integration_id, status, started_at, len(data), total_landed, rejected, all_errors)
+    run_id = _record_run(
+        integration_id, status, started_at, len(data), total_landed, rejected, all_errors
+    )
     return {
         "rows_received": len(data),
         "rows_landed": total_landed,
