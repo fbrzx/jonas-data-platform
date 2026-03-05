@@ -13,6 +13,8 @@ class IntegrationCreate(BaseModel):
     connector_type: str  # webhook | batch_csv | batch_json | ...
     config: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
+    # links to catalogue.entity; source name is derived from entity.name
+    entity_id: str | None = None
 
 
 class IntegrationRead(IntegrationCreate):
@@ -25,6 +27,13 @@ class IntegrationRead(IntegrationCreate):
 
 class WebhookPayload(BaseModel):
     source: str
+    data: dict[str, Any] | list[Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class LinkedWebhookPayload(BaseModel):
+    """Payload for the per-integration webhook — source is derived from the integration."""
+
     data: dict[str, Any] | list[Any]
     metadata: dict[str, Any] = Field(default_factory=dict)
 

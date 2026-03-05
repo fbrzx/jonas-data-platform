@@ -172,11 +172,51 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "ingest_webhook",
+        "description": (
+            "Send a data payload into the bronze layer via webhook ingestion. "
+            "Prefer supplying integration_id (from list_integrations or create_integration) "
+            "so the source table is automatically derived from the integration's name. "
+            "Fall back to an explicit source name only when no integration exists. "
+            "Always confirm the data and target with the user before ingesting."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "integration_id": {
+                    "type": "string",
+                    "description": (
+                        "UUID of an existing webhook integration. "
+                        "When provided, the integration's name is used as the bronze "
+                        "table source — no need to specify source separately."
+                    ),
+                },
+                "source": {
+                    "type": "string",
+                    "description": (
+                        "Fallback source identifier (snake_case) used as the bronze table name "
+                        "when integration_id is not available."
+                    ),
+                },
+                "data": {
+                    "description": "The payload to land: a JSON object or array of objects",
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional key-value metadata to attach to the record",
+                },
+            },
+            "required": ["data"],
+        },
+    },
+    {
         "name": "create_integration",
         "description": (
             "Register a new data integration (e.g. webhook receiver or batch upload source). "
-            "Requires admin or analyst role. "
-            "Always confirm with the user before creating."
+            "When creating an integration for an existing catalogue entity, pass entity_id so the "
+            "integration is linked: the entity's name becomes the canonical bronze table source, "
+            "and preview_entity will query the same table that webhook data lands in. "
+            "Requires admin or analyst role. Always confirm with the user before creating."
         ),
         "input_schema": {
             "type": "object",
@@ -193,6 +233,15 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["webhook", "batch_csv", "batch_json"],
                     "description": "How data arrives",
+                },
+                "entity_id": {
+                    "type": "string",
+                    "description": (
+                        "UUID of the catalogue entity this integration feeds. "
+                        "When set, the integration name is ignored for routing — "
+                        "the entity's name is used as the bronze table source instead, "
+                        "so catalogue metadata, preview, and ingest all refer to the same table."
+                    ),
                 },
                 "config": {
                     "type": "object",
