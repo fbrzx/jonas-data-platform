@@ -93,6 +93,47 @@ def create_transform(
     return result
 
 
+def update_transform(
+    transform_id: str, data: dict[str, Any], tenant_id: str
+) -> dict[str, Any] | None:
+    existing = get_transform(transform_id, tenant_id)
+    if not existing:
+        return None
+
+    is_draft = existing.get("status") == "draft"
+    _JSON_COLUMNS = {"tags"}
+    # sql and layer fields are only respected when draft
+    _DRAFT_ONLY = {"sql", "source_layer", "target_layer"}
+    # Map model field names to DB column names
+    _COLUMN_MAP = {"sql": "transform_sql"}
+
+    db_updates: dict[str, Any] = {}
+    for k, v in data.items():
+        if v is None:
+            continue
+        if k in _DRAFT_ONLY and not is_draft:
+            continue
+        col = _COLUMN_MAP.get(k, k)
+        db_updates[col] = json.dumps(v) if col in _JSON_COLUMNS and not isinstance(v, str) else v
+
+    if not db_updates:
+        return existing
+
+    conn = get_conn()
+    set_clauses = ", ".join(f"{col} = ?" for col in db_updates)
+    values = list(db_updates.values()) + [_now(), transform_id, tenant_id]
+    try:
+        conn.execute(
+            f"UPDATE transforms.transform SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608 E501
+            values,
+        )
+    except Exception as exc:
+        if "unique" in str(exc).lower() or "constraint" in str(exc).lower():
+            raise ValueError(f"Name conflict: {exc}") from exc
+        raise
+    return get_transform(transform_id, tenant_id)
+
+
 def approve_transform(
     transform_id: str, action: str, approved_by: str, tenant_id: str
 ) -> dict[str, Any] | None:

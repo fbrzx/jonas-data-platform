@@ -11,8 +11,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.agent.router import router as agent_router
-from src.auth.openapi import docs_bearer_auth
 from src.auth.middleware import AuthMiddleware
+from src.auth.openapi import docs_bearer_auth
 from src.catalogue.router import router as catalogue_router
 from src.config import settings
 from src.db.connection import close_connection, init_connection

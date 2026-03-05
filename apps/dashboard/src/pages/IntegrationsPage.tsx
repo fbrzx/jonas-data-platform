@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import { api, type Integration, type IntegrationCreate, type IntegrationRun } from '../lib/api'
+import { api, type Integration, type IntegrationCreate, type IntegrationUpdate, type IntegrationRun } from '../lib/api'
+import { usePermissions } from '../lib/permissions'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -280,17 +281,129 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ── Edit Integration Modal ─────────────────────────────────────────────────────
+
+function EditIntegrationModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
+  const { canAdmin } = usePermissions()
+  const qc = useQueryClient()
+
+  const [form, setForm] = useState<IntegrationUpdate>({
+    name: integration.name,
+    description: integration.description ?? '',
+    status: (integration.status as 'active' | 'paused') ?? 'active',
+  })
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (body: IntegrationUpdate) => api.integrations.update(integration.id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations'] })
+      onClose()
+    },
+    onError: (err: Error) => setError(err.message),
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    mutation.mutate(form)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-lg bg-j-surface border border-j-border rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-j-border">
+          <span className="font-mono text-xs font-semibold text-j-bright">Edit Integration</span>
+          <button onClick={onClose} className="font-mono text-[10px] text-j-dim hover:text-j-accent">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
+          {/* Type — read-only */}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Type</label>
+            <p className="font-mono text-xs text-j-dim bg-j-surface2 border border-j-border rounded px-3 py-1.5">
+              {TYPE_GLYPH[integration.connector_type] ?? '◉'} {integration.connector_type}
+            </p>
+          </div>
+
+          {/* Name — admin only */}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Name</label>
+            {canAdmin ? (
+              <>
+                <input
+                  type="text"
+                  value={form.name ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+                />
+                <p className="font-mono text-[10px] text-j-red mt-1">
+                  ⚠ Renaming affects the bronze table name — use with caution.
+                </p>
+              </>
+            ) : (
+              <p className="font-mono text-xs text-j-dim bg-j-surface2 border border-j-border rounded px-3 py-1.5">{integration.name}</p>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Description</label>
+            <input
+              type="text"
+              value={form.description ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+              placeholder="What data does this integration ingest?"
+            />
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Status</label>
+            <select
+              value={form.status}
+              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as 'active' | 'paused' }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright focus:outline-none focus:border-j-accent"
+            >
+              <option value="active">active</option>
+              <option value="paused">paused</option>
+            </select>
+          </div>
+
+          {error && (
+            <div className="font-mono text-[11px] text-j-red bg-j-red-dim border border-j-red rounded px-3 py-2">{error}</div>
+          )}
+
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={onClose} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim border border-j-border px-3 py-1.5 rounded hover:border-j-border-b transition-colors">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors disabled:opacity-50"
+            >
+              {mutation.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Integration Card ───────────────────────────────────────────────────────────
 
 function IntegrationCard({
   integration,
   onUpload,
   onRuns,
+  onEdit,
   onDelete,
 }: {
   integration: Integration
   onUpload: () => void
   onRuns: () => void
+  onEdit: () => void
   onDelete: () => void
 }) {
   const s = STATUS_STYLE[integration.status] ?? STATUS_STYLE.inactive
@@ -367,6 +480,13 @@ function IntegrationCard({
             </button>
           )}
           <button
+            onClick={onEdit}
+            className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-2 py-1 rounded transition-colors"
+            title="Edit integration"
+          >
+            edit
+          </button>
+          <button
             onClick={onDelete}
             className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-red/60 border border-j-border hover:border-j-red hover:text-j-red px-2 py-1 rounded transition-colors"
             title="Delete integration"
@@ -383,9 +503,11 @@ function IntegrationCard({
 
 export default function IntegrationsPage() {
   const queryClient = useQueryClient()
+  const { canWrite } = usePermissions()
   const [showCreate, setShowCreate] = useState(false)
   const [uploadTarget, setUploadTarget] = useState<Integration | null>(null)
   const [runsTarget, setRunsTarget] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<Integration | null>(null)
 
   const { data: integrations, isLoading, error, refetch } = useQuery({
     queryKey: ['integrations'],
@@ -418,12 +540,14 @@ export default function IntegrationsPage() {
           >
             Refresh
           </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
-          >
-            + New
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
+            >
+              + New
+            </button>
+          )}
         </div>
       </div>
 
@@ -466,6 +590,7 @@ export default function IntegrationsPage() {
             integration={i}
             onUpload={() => setUploadTarget(i)}
             onRuns={() => setRunsTarget(i.id)}
+            onEdit={() => setEditTarget(i)}
             onDelete={() => handleDelete(i.id, i.name)}
           />
         ))}
@@ -473,6 +598,7 @@ export default function IntegrationsPage() {
 
       {/* Modals */}
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} />}
+      {editTarget && <EditIntegrationModal integration={editTarget} onClose={() => setEditTarget(null)} />}
       {uploadTarget && <UploadModal integration={uploadTarget} onClose={() => setUploadTarget(null)} />}
       {runsTarget && <RunHistory integrationId={runsTarget} onClose={() => setRunsTarget(null)} />}
     </div>

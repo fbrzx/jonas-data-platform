@@ -9,6 +9,7 @@ from src.integrations import ingest, service
 from src.integrations.models import (
     BatchIngestResponse,
     IntegrationCreate,
+    IntegrationUpdate,
     LinkedWebhookPayload,
     WebhookPayload,
 )
@@ -76,6 +77,19 @@ async def create_integration(
 ) -> dict[str, Any]:
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     return service.create_integration(body.model_dump(), _tenant(request))
+
+
+@router.patch("/{integration_id}")
+async def update_integration(
+    integration_id: str, body: IntegrationUpdate, request: Request
+) -> dict[str, Any]:
+    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
+    result = service.update_integration(
+        integration_id, body.model_dump(exclude_none=True), _tenant(request)
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    return result
 
 
 @router.delete("/{integration_id}", status_code=204)

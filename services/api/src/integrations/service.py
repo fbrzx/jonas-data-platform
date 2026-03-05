@@ -62,6 +62,36 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     return result
 
 
+def update_integration(
+    integration_id: str, data: dict[str, Any], tenant_id: str
+) -> dict[str, Any] | None:
+    existing = get_integration(integration_id, tenant_id)
+    if not existing:
+        return None
+
+    _JSON_COLUMNS = {"config", "tags"}
+    # connector_type is immutable — always excluded
+    data.pop("connector_type", None)
+
+    db_updates: dict[str, Any] = {}
+    for k, v in data.items():
+        if v is None:
+            continue
+        db_updates[k] = json.dumps(v) if k in _JSON_COLUMNS and not isinstance(v, str) else v
+
+    if not db_updates:
+        return existing
+
+    conn = get_conn()
+    set_clauses = ", ".join(f"{col} = ?" for col in db_updates)
+    values = list(db_updates.values()) + [_now(), integration_id, tenant_id]
+    conn.execute(
+        f"UPDATE integrations.integration SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608 E501
+        values,
+    )
+    return get_integration(integration_id, tenant_id)
+
+
 def delete_integration(integration_id: str, tenant_id: str) -> None:
     get_conn().execute(
         "DELETE FROM integrations.integration WHERE id = ? AND tenant_id = ?",

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from src.auth.permissions import Action, Resource, require_permission
 from src.transforms import service
-from src.transforms.models import ApprovalAction, TransformCreate
+from src.transforms.models import ApprovalAction, TransformCreate, TransformUpdate
 
 router = APIRouter()
 
@@ -45,6 +45,23 @@ async def create_transform(body: TransformCreate, request: Request) -> dict[str,
     require_permission(user, Resource.TRANSFORM, Action.WRITE)
     created_by = user.get("user_id", "unknown")
     return service.create_transform(body.model_dump(), _tenant(request), created_by)
+
+
+@router.patch("/{transform_id}")
+async def update_transform(
+    transform_id: UUID, body: TransformUpdate, request: Request
+) -> dict[str, Any]:
+    user = _user(request)
+    require_permission(user, Resource.TRANSFORM, Action.WRITE)
+    try:
+        result = service.update_transform(
+            str(transform_id), body.model_dump(exclude_none=True), _tenant(request)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not result:
+        raise HTTPException(status_code=404, detail="Transform not found")
+    return result
 
 
 @router.delete("/{transform_id}", status_code=204)
