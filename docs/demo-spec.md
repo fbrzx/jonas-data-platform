@@ -18,7 +18,7 @@ three things:
 | Cloud persistence | MotherDuck | Shared storage, tenant isolation via databases |
 | Agent interface | Web UI (React + chat panel) | User interaction |
 | API layer | FastAPI (Python) | Auth middleware, agent orchestration |
-| Agent backend | Claude API | NL understanding, SQL generation, schema proposals |
+| Agent backend | LLM API | NL understanding, SQL generation, schema proposals |
 | Data format | Parquet | Bronze & silver storage in MotherDuck |
 
 ### MotherDuck Database Layout
