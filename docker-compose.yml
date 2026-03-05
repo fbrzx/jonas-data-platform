@@ -12,8 +12,14 @@ services:
       DUCKDB_PATH: /app/data/db/jonas.duckdb
       PARQUET_ROOT: /app/data/parquet
       API_SECRET_KEY: ${API_SECRET_KEY:-change_me_in_dev}
-      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
-      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_BASE_URL: ${GOOGLE_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-ollama}
       # Uncomment to use MotherDuck instead of local file:
       # MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
     healthcheck:

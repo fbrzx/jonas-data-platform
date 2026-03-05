@@ -1,9 +1,9 @@
-# CLAUDE.md — Project Context for Claude Code
+# CLAUDE.md — Project Context
 
 ## What This Is
 
 Jonas Data Platform — an AI-native, multi-tenant data platform prototype.
-The agent (Claude) helps permissioned users extend the system: ingest data,
+The agent (LLM-powered assistant) helps permissioned users extend the system: ingest data,
 create schemas, draft transforms, query across domains. All within RBAC boundaries.
 
 ## Read First
@@ -30,7 +30,7 @@ Before writing any code, read these docs in order:
 
 ## Phase 2 Status (DONE)
 
-1. ✅ **Agent core** (`services/api/src/agent/`): tool-use loop via Claude API
+1. ✅ **Agent core** (`services/api/src/agent/`): tool-use loop via provider-based LLM API (`openai`, `google`, `ollama`)
    - 7 tools: `list_entities`, `describe_entity`, `infer_schema`, `register_entity`, `run_sql`, `preview_entity`, `draft_transform`
    - Dynamic system prompt with live catalogue context
    - Role-scoped SQL enforcement (bronze/silver/gold layer access by role)
@@ -62,7 +62,7 @@ Before writing any code, read these docs in order:
 - Python 3.11+, use type hints throughout
 - Pydantic models for all API request/response shapes
 - Async FastAPI where possible
-- Environment config via .env file (MOTHERDUCK_TOKEN, CLAUDE_API_KEY)
+- Environment config via .env file (`MOTHERDUCK_TOKEN`, `LLM_PROVIDER`, `LLM_MODEL`, provider credentials)
 - All SQL in the codebase should be parameterised (no f-string SQL)
 
 ### Monorepo Structure
@@ -95,7 +95,7 @@ jonas-data-platform/
 │       │   ├── transforms/   ← models, service, router
 │       │   ├── agent/
 │       │   │   ├── router.py     ← /agent/chat endpoint
-│       │   │   ├── service.py    ← Claude API tool-use loop
+│       │   │   ├── service.py    ← provider-based LLM tool-use loop
 │       │   │   ├── tools.py      ← 7 tool definitions
 │       │   │   ├── inference.py  ← JSON/CSV → field schema inference
 │       │   │   └── pii.py        ← deterministic field-level PII masking

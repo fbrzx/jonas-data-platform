@@ -18,7 +18,7 @@ user's access level.
 | Analytical engine | DuckDB (local) |
 | Cloud persistence | MotherDuck (one database per tenant) |
 | API layer | FastAPI (Python) — `services/api/` |
-| Agent backend | Claude API (`claude-sonnet-4-6`) |
+| Agent backend | Provider-based LLM (`openai`, `google`, `ollama`) |
 | Web UI | Vite + React + TypeScript — `apps/dashboard/` |
 | Data format | Parquet (bronze/silver), views/materialised (gold) |
 
@@ -40,7 +40,8 @@ python -m uvicorn src.main:app --reload   # http://localhost:8000
 python scripts/seed_data.py
 ```
 
-Copy `.env.example` to `.env` and fill in `MOTHERDUCK_TOKEN` and `CLAUDE_API_KEY`.
+Copy `.env.example` to `.env` and set `LLM_PROVIDER`, `LLM_MODEL`, and the matching
+provider credentials (`OPENAI_API_KEY` or `GOOGLE_API_KEY`, or Ollama base URL).
 
 ## MotherDuck Layout
 
@@ -71,33 +72,7 @@ Read these in order:
 4. **`db/001_core.sql`** — PostgreSQL-flavoured DDL (needs adapting for DuckDB/
    MotherDuck syntax). 13 tables with design rationale in comments.
 
-## Implementation Phases
-
-### Phase 1: Foundation (start here)
-- MotherDuck database setup (platform_db + tenant_acme)
-- Adapt DDL from 001_core.sql to DuckDB/MotherDuck syntax
-- FastAPI skeleton with tenant-aware auth middleware (JWT or simple token)
-- Permission resolution service
-- Sample data generators (50 orders, 500 sensor readings, 100 contacts)
-
-### Phase 2: Agent Core
-- Claude API integration with catalogue-aware system prompt
-- Schema inference (inspect JSON/CSV → propose entity fields)
-- NL-to-SQL (scoped to user's accessible entities)
-- Transform lifecycle (draft → approve → execute → lineage)
-- PII masking in query results
-
-### Phase 3: Web UI (scaffold complete)
-- ✅ Vite + React SPA skeleton (`apps/dashboard/`)
-- ✅ Sidebar nav with stub pages: Catalogue, Integrations, Transforms, Chat
-- Catalogue browser, integration dashboard, transform viewer (TODO)
-- Data preview grid with PII masking (TODO)
-- Lineage DAG visualisation (TODO)
-
-### Phase 4: Demo Polish
-- Pre-seeded demo data
-- Scripted walkthrough for the three scenarios
-- Demo reset capability
+Project phase/status tracking is maintained in `CLAUDE.md`.
 
 ## Key Design Decisions
 

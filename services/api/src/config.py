@@ -19,9 +19,22 @@ class Settings(BaseSettings):
     # Parquet storage root (local filesystem or future cloud path)
     parquet_root: str = "data/parquet"
 
-    # Anthropic
-    claude_api_key: str = ""
-    claude_model: str = "claude-sonnet-4-6"
+    # LLM provider config
+    # Supported providers: openai, google, ollama
+    llm_provider: str = "ollama"
+    llm_model: str = "llama3.2"
+
+    # OpenAI
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+
+    # Google Gemini (OpenAI-compatible endpoint)
+    google_api_key: str = ""
+    google_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+    # Ollama (OpenAI-compatible endpoint)
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_api_key: str = "ollama"
 
 
 settings = Settings()
