@@ -266,7 +266,7 @@ def _run_tool(
                 {"error": f"Access denied: role '{role}' cannot ingest data."}
             )
 
-        # Resolve source: prefer integration_id → integration.name, fall back to explicit source
+        # Resolve source: prefer integration_id → entity.name (if linked) → integration.name
         integration_id = tool_input.get("integration_id")
         if integration_id:
             integration = get_integration(integration_id, tenant_id)
@@ -281,7 +281,18 @@ def _run_tool(
                         )
                     }
                 )
-            source = str(integration["name"])
+            entity_id = integration.get("target_entity_id")
+            if entity_id:
+                from src.catalogue.service import get_entity
+
+                entity = get_entity(str(entity_id), tenant_id)
+                if not entity:
+                    return json.dumps(
+                        {"error": f"Linked catalogue entity '{entity_id}' not found."}
+                    )
+                source = str(entity["name"])
+            else:
+                source = str(integration["name"])
         else:
             source = tool_input.get("source", "")
 

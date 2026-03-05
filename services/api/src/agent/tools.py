@@ -213,8 +213,10 @@ TOOLS: list[dict[str, Any]] = [
         "name": "create_integration",
         "description": (
             "Register a new data integration (e.g. webhook receiver or batch upload source). "
-            "Requires admin or analyst role. "
-            "Always confirm with the user before creating."
+            "When creating an integration for an existing catalogue entity, pass entity_id so the "
+            "integration is linked: the entity's name becomes the canonical bronze table source, "
+            "and preview_entity will query the same table that webhook data lands in. "
+            "Requires admin or analyst role. Always confirm with the user before creating."
         ),
         "input_schema": {
             "type": "object",
@@ -231,6 +233,15 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["webhook", "batch_csv", "batch_json"],
                     "description": "How data arrives",
+                },
+                "entity_id": {
+                    "type": "string",
+                    "description": (
+                        "UUID of the catalogue entity this integration feeds. "
+                        "When set, the integration name is ignored for routing — "
+                        "the entity's name is used as the bronze table source instead, "
+                        "so catalogue metadata, preview, and ingest all refer to the same table."
+                    ),
                 },
                 "config": {
                     "type": "object",

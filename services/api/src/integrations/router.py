@@ -64,8 +64,8 @@ async def ingest_via_integration(
 ) -> dict[str, Any]:
     """Send data through a specific integration's webhook.
 
-    The integration's name is used as the bronze table source identifier,
-    so there's no need to specify a source in the body.
+    Source table is derived from the linked catalogue entity's name when entity_id is set,
+    otherwise falls back to the integration's own name.
     """
     require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
     tenant_id = _tenant(request)
@@ -77,7 +77,21 @@ async def ingest_via_integration(
             status_code=422,
             detail=f"Integration connector_type is '{integration['connector_type']}', not 'webhook'",
         )
-    source = str(integration["name"])
+
+    entity_id = integration.get("target_entity_id")
+    if entity_id:
+        from src.catalogue.service import get_entity
+
+        entity = get_entity(str(entity_id), tenant_id)
+        if not entity:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Linked catalogue entity '{entity_id}' not found",
+            )
+        source = str(entity["name"])
+    else:
+        source = str(integration["name"])
+
     return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id)
 
 

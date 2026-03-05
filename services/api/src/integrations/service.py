@@ -41,8 +41,8 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
         """
         INSERT INTO integrations.integration
             (id, tenant_id, name, description, connector_type, config,
-             status, tags, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+             status, tags, target_entity_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
         """,
         [
             integration_id,
@@ -52,6 +52,7 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
             data["connector_type"],
             json.dumps(data.get("config", {})),
             json.dumps(data.get("tags", [])),
+            data.get("entity_id"),
             now,
             now,
         ],
