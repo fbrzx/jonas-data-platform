@@ -259,12 +259,37 @@ def _run_tool(
     if tool_name == "ingest_webhook":
         from src.auth.permissions import Action, Resource, can
         from src.integrations.ingest import land_webhook
+        from src.integrations.service import get_integration
 
         if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
             return json.dumps(
                 {"error": f"Access denied: role '{role}' cannot ingest data."}
             )
-        source = tool_input.get("source", "")
+
+        # Resolve source: prefer integration_id → integration.name, fall back to explicit source
+        integration_id = tool_input.get("integration_id")
+        if integration_id:
+            integration = get_integration(integration_id, tenant_id)
+            if not integration:
+                return json.dumps({"error": f"Integration '{integration_id}' not found."})
+            if integration.get("connector_type") != "webhook":
+                return json.dumps(
+                    {
+                        "error": (
+                            f"Integration '{integration['name']}' has connector_type "
+                            f"'{integration['connector_type']}', not 'webhook'."
+                        )
+                    }
+                )
+            source = str(integration["name"])
+        else:
+            source = tool_input.get("source", "")
+
+        if not source:
+            return json.dumps(
+                {"error": "Provide either integration_id or source to identify the target table."}
+            )
+
         data = tool_input.get("data", {})
         metadata = tool_input.get("metadata", {})
         result = land_webhook(source, data, metadata, tenant_id)

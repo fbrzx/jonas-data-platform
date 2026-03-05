@@ -29,6 +29,13 @@ class WebhookPayload(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class LinkedWebhookPayload(BaseModel):
+    """Payload for the per-integration webhook — source is derived from the integration."""
+
+    data: dict[str, Any] | list[Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class BatchIngestResponse(BaseModel):
     rows_received: int
     rows_landed: int

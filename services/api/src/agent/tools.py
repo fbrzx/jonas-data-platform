@@ -174,17 +174,29 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ingest_webhook",
         "description": (
-            "Send a data payload directly into the bronze layer via webhook ingestion. "
-            "Use this after creating an integration to actually land records. "
-            "The source identifier determines the bronze table (e.g. source='orders' → bronze.orders). "
-            "Always confirm the data and source with the user before ingesting."
+            "Send a data payload into the bronze layer via webhook ingestion. "
+            "Prefer supplying integration_id (from list_integrations or create_integration) "
+            "so the source table is automatically derived from the integration's name. "
+            "Fall back to an explicit source name only when no integration exists. "
+            "Always confirm the data and target with the user before ingesting."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "integration_id": {
+                    "type": "string",
+                    "description": (
+                        "UUID of an existing webhook integration. "
+                        "When provided, the integration's name is used as the bronze table source — "
+                        "no need to specify source separately."
+                    ),
+                },
                 "source": {
                     "type": "string",
-                    "description": "Source identifier — used as the bronze table name (snake_case)",
+                    "description": (
+                        "Fallback source identifier (snake_case) used as the bronze table name "
+                        "when integration_id is not available."
+                    ),
                 },
                 "data": {
                     "description": "The payload to land: a JSON object or array of objects",
@@ -194,7 +206,7 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Optional key-value metadata to attach to the record",
                 },
             },
-            "required": ["source", "data"],
+            "required": ["data"],
         },
     },
     {

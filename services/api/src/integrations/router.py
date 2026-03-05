@@ -9,6 +9,7 @@ from src.integrations import ingest, service
 from src.integrations.models import (
     BatchIngestResponse,
     IntegrationCreate,
+    LinkedWebhookPayload,
     WebhookPayload,
 )
 
@@ -55,6 +56,29 @@ async def ingest_webhook(payload: WebhookPayload, request: Request) -> dict[str,
     return ingest.land_webhook(
         payload.source, payload.data, payload.metadata, _tenant(request)
     )
+
+
+@router.post("/{integration_id}/webhook", response_model=BatchIngestResponse)
+async def ingest_via_integration(
+    integration_id: str, payload: LinkedWebhookPayload, request: Request
+) -> dict[str, Any]:
+    """Send data through a specific integration's webhook.
+
+    The integration's name is used as the bronze table source identifier,
+    so there's no need to specify a source in the body.
+    """
+    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
+    tenant_id = _tenant(request)
+    integration = service.get_integration(integration_id, tenant_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    if integration.get("connector_type") != "webhook":
+        raise HTTPException(
+            status_code=422,
+            detail=f"Integration connector_type is '{integration['connector_type']}', not 'webhook'",
+        )
+    source = str(integration["name"])
+    return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id)
 
 
 @router.post("/ingest/batch", response_model=BatchIngestResponse)
