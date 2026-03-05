@@ -43,3 +43,17 @@ class BatchIngestResponse(BaseModel):
     rows_landed: int
     target_table: str
     errors: list[str] = Field(default_factory=list)
+    run_id: str | None = None
+
+
+class IntegrationRun(BaseModel):
+    id: str
+    integration_id: str
+    status: str  # running | success | partial | failed
+    started_at: datetime
+    completed_at: datetime | None
+    records_in: int
+    records_out: int
+    records_rejected: int
+    error_detail: dict[str, Any] = Field(default_factory=dict)
+    stats: dict[str, Any] = Field(default_factory=dict)

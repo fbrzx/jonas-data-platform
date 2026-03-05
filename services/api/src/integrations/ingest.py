@@ -14,6 +14,47 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _record_run(
+    integration_id: str | None,
+    status: str,
+    started_at: str,
+    records_in: int,
+    records_out: int,
+    records_rejected: int,
+    errors: list[str],
+) -> str | None:
+    """Write a run record to integration_run. Returns the run id, or None if skipped."""
+    if not integration_id:
+        return None
+    conn = get_conn()
+    run_id = str(uuid.uuid4())
+    error_detail = json.dumps({"errors": errors}) if errors else json.dumps({})
+    try:
+        conn.execute(
+            """
+            INSERT INTO integrations.integration_run
+                (id, integration_id, status, started_at, completed_at,
+                 records_in, records_out, records_rejected, error_detail, stats)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                run_id,
+                integration_id,
+                status,
+                started_at,
+                _now(),
+                records_in,
+                records_out,
+                records_rejected,
+                error_detail,
+                json.dumps({}),
+            ],
+        )
+    except Exception:
+        return None
+    return run_id
+
+
 def _bronze_table(source: str) -> str:
     """Derive a safe bronze table name from the source identifier."""
     safe = "".join(c if c.isalnum() else "_" for c in source.lower())
@@ -34,11 +75,13 @@ def land_webhook(
     data: dict[str, Any] | list[Any],
     metadata: dict[str, Any],
     tenant_id: str,
+    integration_id: str | None = None,
 ) -> dict[str, Any]:
     """Land a webhook payload into the bronze layer."""
     conn = get_conn()
     table = _bronze_table(source)
     _ensure_bronze_schema(conn)
+    started_at = _now()
 
     conn.execute(
         f"""
@@ -60,35 +103,48 @@ def land_webhook(
             [row_id, tenant_id, _now(), source, json.dumps(data), json.dumps(metadata)],
         )
     except Exception as exc:
+        run_id = _record_run(integration_id, "failed", started_at, 1, 0, 1, [str(exc)])
         return {
             "rows_received": 1,
             "rows_landed": 0,
             "target_table": table,
             "errors": [str(exc)],
+            "run_id": run_id,
         }
 
-    return {"rows_received": 1, "rows_landed": 1, "target_table": table, "errors": []}
+    run_id = _record_run(integration_id, "success", started_at, 1, 1, 0, [])
+    return {
+        "rows_received": 1,
+        "rows_landed": 1,
+        "target_table": table,
+        "errors": [],
+        "run_id": run_id,
+    }
 
 
 def land_batch_csv(
     source: str,
     content: bytes,
     tenant_id: str,
+    integration_id: str | None = None,
 ) -> dict[str, Any]:
     """Parse a CSV upload and land rows into the bronze layer."""
     conn = get_conn()
     table = _bronze_table(source)
     _ensure_bronze_schema(conn)
+    started_at = _now()
     text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     rows = list(reader)
 
     if not rows:
+        run_id = _record_run(integration_id, "success", started_at, 0, 0, 0, [])
         return {
             "rows_received": 0,
             "rows_landed": 0,
             "target_table": table,
             "errors": [],
+            "run_id": run_id,
         }
 
     raw_cols = list(rows[0].keys())
@@ -120,11 +176,15 @@ def land_batch_csv(
         except Exception as exc:
             errors.append(f"Row {i}: {exc}")
 
+    rejected = len(rows) - landed
+    status = "success" if not errors else ("partial" if landed > 0 else "failed")
+    run_id = _record_run(integration_id, status, started_at, len(rows), landed, rejected, errors)
     return {
         "rows_received": len(rows),
         "rows_landed": landed,
         "target_table": table,
         "errors": errors,
+        "run_id": run_id,
     }
 
 
@@ -132,8 +192,10 @@ def land_batch_json(
     source: str,
     content: bytes,
     tenant_id: str,
+    integration_id: str | None = None,
 ) -> dict[str, Any]:
     """Parse a JSON upload (array or newline-delimited) and land into bronze."""
+    started_at = _now()
     text = content.decode("utf-8", errors="replace")
     try:
         data = json.loads(text)
@@ -142,14 +204,22 @@ def land_batch_json(
     except json.JSONDecodeError:
         data = [json.loads(line) for line in text.splitlines() if line.strip()]
 
-    results = []
+    all_errors: list[str] = []
+    total_landed = 0
     for record in data:
         result = land_webhook(source, record, {}, tenant_id)
-        results.append(result)
+        total_landed += result["rows_landed"]
+        all_errors.extend(result.get("errors", []))
 
+    rejected = len(data) - total_landed
+    status = "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
+    run_id = _record_run(
+        integration_id, status, started_at, len(data), total_landed, rejected, all_errors
+    )
     return {
         "rows_received": len(data),
-        "rows_landed": sum(r["rows_landed"] for r in results),
+        "rows_landed": total_landed,
         "target_table": _bronze_table(source),
-        "errors": [],
+        "errors": all_errors,
+        "run_id": run_id,
     }

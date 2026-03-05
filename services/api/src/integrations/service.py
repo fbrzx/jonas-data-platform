@@ -67,3 +67,23 @@ def delete_integration(integration_id: str, tenant_id: str) -> None:
         "DELETE FROM integrations.integration WHERE id = ? AND tenant_id = ?",
         [integration_id, tenant_id],
     )
+
+
+def list_runs(integration_id: str, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Return recent runs for an integration, newest first."""
+    conn = get_conn()
+    # Verify the integration belongs to this tenant before returning runs
+    integration = get_integration(integration_id, tenant_id)
+    if not integration:
+        return []
+    rows = conn.execute(
+        """
+        SELECT * FROM integrations.integration_run
+        WHERE integration_id = ?
+        ORDER BY started_at DESC
+        LIMIT ?
+        """,
+        [integration_id, limit],
+    ).fetchall()
+    cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+    return [dict(zip(cols, row)) for row in rows]

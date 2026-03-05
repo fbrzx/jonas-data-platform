@@ -67,12 +67,41 @@ export interface Integration {
   tenant_id: string
   name: string
   description?: string
-  source_type: string
+  connector_type: string
   status: string
   config?: string
-  last_run_at?: string
+  target_entity_id?: string
   created_at: string
   updated_at: string
+}
+
+export interface IntegrationCreate {
+  name: string
+  description?: string
+  connector_type: 'webhook' | 'batch_csv' | 'batch_json'
+  config?: Record<string, unknown>
+  tags?: string[]
+  entity_id?: string
+}
+
+export interface IngestResponse {
+  rows_received: number
+  rows_landed: number
+  target_table: string
+  errors: string[]
+  run_id?: string
+}
+
+export interface IntegrationRun {
+  id: string
+  integration_id: string
+  status: 'running' | 'success' | 'partial' | 'failed'
+  started_at: string
+  completed_at?: string
+  records_in: number
+  records_out: number
+  records_rejected: number
+  error_detail?: Record<string, unknown>
 }
 
 export interface Transform {
@@ -137,6 +166,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_BASE_PATH}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<T>
+}
+
 // ── API surface ───────────────────────────────────────────────────────────────
 
 export const api = {
@@ -149,6 +193,19 @@ export const api = {
 
   integrations: {
     list: () => request<Integration[]>('/integrations'),
+    create: (body: IntegrationCreate) =>
+      request<Integration>('/integrations', { method: 'POST', body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      request<void>(`/integrations/${id}`, { method: 'DELETE' }),
+    sendWebhook: (id: string, data: unknown, metadata?: Record<string, unknown>) =>
+      request<IngestResponse>(`/integrations/${id}/webhook`, {
+        method: 'POST',
+        body: JSON.stringify({ data, metadata: metadata ?? {} }),
+      }),
+    uploadBatch: (id: string, file: File) =>
+      upload<IngestResponse>(`/integrations/${id}/batch`, file),
+    getRuns: (id: string) =>
+      request<IntegrationRun[]>(`/integrations/${id}/runs`),
   },
 
   transforms: {
