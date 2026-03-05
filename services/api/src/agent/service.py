@@ -318,6 +318,7 @@ def _run_tool(
                 "connector_type": i.get("connector_type"),
                 "status": i.get("status"),
                 "description": i.get("description", ""),
+                "entity_id": i.get("target_entity_id"),
             }
             for i in integrations
         ]

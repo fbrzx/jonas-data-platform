@@ -30,6 +30,38 @@ def _tenant(request: Request) -> str:
     return str(tid)
 
 
+def _resolve_source(integration_id: str, tenant_id: str, expected_type: str) -> str:
+    """Look up an integration and return the bronze source name.
+
+    Prefers the linked catalogue entity's name when target_entity_id is set,
+    otherwise falls back to the integration's own name.
+    Raises HTTPException on not-found or wrong connector_type.
+    """
+    integration = service.get_integration(integration_id, tenant_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    if integration.get("connector_type") != expected_type:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Integration connector_type is '{integration['connector_type']}', "
+                f"not '{expected_type}'"
+            ),
+        )
+    entity_id = integration.get("target_entity_id")
+    if entity_id:
+        from src.catalogue.service import get_entity
+
+        entity = get_entity(str(entity_id), tenant_id)
+        if not entity:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Linked catalogue entity '{entity_id}' not found",
+            )
+        return str(entity["name"])
+    return str(integration["name"])
+
+
 @router.get("")
 async def list_integrations(request: Request) -> list[dict[str, Any]]:
     require_permission(_user(request), Resource.INTEGRATION, Action.READ)
@@ -78,20 +110,7 @@ async def ingest_via_integration(
             detail=f"Integration connector_type is '{integration['connector_type']}', not 'webhook'",
         )
 
-    entity_id = integration.get("target_entity_id")
-    if entity_id:
-        from src.catalogue.service import get_entity
-
-        entity = get_entity(str(entity_id), tenant_id)
-        if not entity:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Linked catalogue entity '{entity_id}' not found",
-            )
-        source = str(entity["name"])
-    else:
-        source = str(integration["name"])
-
+    source = _resolve_source(integration_id, tenant_id, "webhook")
     return ingest.land_webhook(source, payload.data, payload.metadata, tenant_id)
 
 
@@ -113,3 +132,31 @@ async def ingest_batch(
         result = ingest.land_batch_json(source, content, _tenant(request))
 
     return result
+
+
+@router.post("/{integration_id}/batch", response_model=BatchIngestResponse)
+async def ingest_batch_via_integration(
+    integration_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Upload a CSV or JSON file through a specific batch integration.
+
+    Source table is derived from the linked catalogue entity's name when entity_id is set,
+    otherwise falls back to the integration's own name. connector_type must be
+    batch_csv or batch_json.
+    """
+    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
+    tenant_id = _tenant(request)
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
+
+    filename = file.filename or ""
+    connector_type = "batch_csv" if filename.endswith(".csv") else "batch_json"
+    source = _resolve_source(integration_id, tenant_id, connector_type)
+
+    if connector_type == "batch_csv":
+        return ingest.land_batch_csv(source, content, tenant_id)
+    return ingest.land_batch_json(source, content, tenant_id)
