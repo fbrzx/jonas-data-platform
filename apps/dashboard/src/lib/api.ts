@@ -2,6 +2,7 @@
 
 const TOKEN_KEY = 'jonas_token'
 const DEFAULT_TOKEN = 'admin-token'
+const API_BASE_PATH = '/api/v1'
 
 export const DEMO_TOKENS = [
   { label: 'Admin',   value: 'admin-token'   },
@@ -121,7 +122,7 @@ export interface ChatMessage {
 // ── Fetch wrapper ─────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE_PATH}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -171,7 +172,7 @@ export const api = {
       }),
 
     async *streamChat(messages: ChatMessage[]): AsyncGenerator<{ type: string; text?: string; name?: string; message?: string }> {
-      const res = await fetch('/api/agent/chat/stream', {
+      const res = await fetch(`${API_BASE_PATH}/agent/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

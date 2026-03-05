@@ -313,15 +313,25 @@ TRANSFORMS = [
         "target_layer": "silver",
         "sql": (
             "CREATE OR REPLACE TABLE silver.orders_cleaned AS\n"
+            "WITH parsed AS (\n"
+            "    SELECT\n"
+            "        json_extract_string(payload, '$.order_id') AS order_id,\n"
+            "        json_extract_string(payload, '$.customer_id') AS customer_id,\n"
+            "        json_extract_string(payload, '$.status') AS status,\n"
+            "        TRY_CAST(json_extract_string(payload, '$.created_at') AS TIMESTAMP) AS created_at,\n"
+            "        COALESCE(NULLIF(json_extract_string(payload, '$.shipping_country'), ''), 'UNKNOWN') AS shipping_country,\n"
+            "        TRY_CAST(json_extract(payload, '$.total') AS DOUBLE) AS total_usd\n"
+            "    FROM bronze.orders\n"
+            ")\n"
             "SELECT\n"
             "    order_id,\n"
             "    customer_id,\n"
             "    status,\n"
-            "    created_at::TIMESTAMP AS created_at,\n"
-            "    COALESCE(shipping_country, 'UNKNOWN') AS shipping_country,\n"
-            "    total::FLOAT AS total_usd\n"
-            "FROM bronze.orders\n"
-            "WHERE order_id IS NOT NULL AND total IS NOT NULL"
+            "    created_at,\n"
+            "    shipping_country,\n"
+            "    total_usd\n"
+            "FROM parsed\n"
+            "WHERE order_id IS NOT NULL AND total_usd IS NOT NULL"
         ),
         "tags": ["ecommerce"],
     },

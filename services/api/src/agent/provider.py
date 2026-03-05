@@ -52,13 +52,7 @@ def build_provider_client() -> ProviderClient:
                 api_key=settings.ollama_api_key or "ollama",
                 base_url=settings.ollama_base_url,
             ),
-            request_overrides={
-                "extra_body": {
-                    "reasoning": False,
-                    "thinking": False,
-                    "think": False,
-                }
-            },
+            request_overrides={},
         )
 
     raise ValueError(

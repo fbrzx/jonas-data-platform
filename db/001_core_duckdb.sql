@@ -27,6 +27,9 @@ CREATE SCHEMA IF NOT EXISTS transforms;
 CREATE SCHEMA IF NOT EXISTS integrations;
 CREATE SCHEMA IF NOT EXISTS permissions;
 CREATE SCHEMA IF NOT EXISTS audit;
+CREATE SCHEMA IF NOT EXISTS bronze;
+CREATE SCHEMA IF NOT EXISTS silver;
+CREATE SCHEMA IF NOT EXISTS gold;
 
 -- ============================================================
 -- TENANCY & IDENTITY  (platform schema)

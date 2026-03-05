@@ -1,6 +1,7 @@
 """Transform service — draft, approve, execute lifecycle."""
 
 import json
+import re
 import time
 import uuid
 from datetime import UTC, datetime
@@ -11,6 +12,32 @@ from src.db.connection import get_conn
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_identifier(value: str, field_name: str) -> str:
+    candidate = value.strip().lower()
+    if not _SAFE_IDENTIFIER.fullmatch(candidate):
+        raise ValueError(f"Invalid {field_name}: {value!r}")
+    return candidate
+
+
+def _safe_table_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_]", "_", value.strip().lower())
+    cleaned = cleaned.strip("_")
+    if not cleaned:
+        return "transform_output"
+    if cleaned[0].isdigit():
+        return f"t_{cleaned}"
+    return cleaned
+
+
+def _ensure_layer_schema(conn: Any, layer: str) -> str:
+    safe_layer = _validate_identifier(layer, "layer")
+    conn.execute(f"CREATE SCHEMA IF NOT EXISTS {safe_layer}")  # noqa: S608
+    return safe_layer
 
 
 def list_transforms(tenant_id: str) -> list[dict[str, Any]]:
@@ -90,12 +117,13 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         raise ValueError("Only approved transforms can be executed")
 
     conn = get_conn()
+    _ensure_layer_schema(conn, str(transform["source_layer"]))
+    target_layer = _ensure_layer_schema(conn, str(transform["target_layer"]))
     start = time.monotonic()
     errors: list[str] = []
     rows_affected = 0
-    target_table = (
-        f"{transform['target_layer']}.{transform['name'].lower().replace(' ', '_')}"
-    )
+    target_name = _safe_table_name(str(transform["name"]))
+    target_table = f"{target_layer}.{target_name}"
 
     run_id = str(uuid.uuid4())
     started_at = _now()
