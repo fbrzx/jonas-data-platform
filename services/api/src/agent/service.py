@@ -91,7 +91,7 @@ After user confirms, call `register_entity`, then `create_integration` linking t
 For webhook integrations, tell the user the exact endpoint to POST to:
   POST /api/v1/integrations/<integration_id>/webhook
   Headers: Authorization: Bearer <token>
-  Body: {"data": <your_payload>}
+  Body: {{"data": <your_payload>}}
 For batch (CSV/JSON) integrations, tell the user to upload via the dashboard or:
   POST /api/v1/integrations/<integration_id>/batch
   Headers: Authorization: Bearer <token>

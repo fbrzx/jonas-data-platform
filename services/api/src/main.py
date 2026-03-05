@@ -3,7 +3,7 @@ import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler  # type: ignore[attr-defined]
@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.agent.router import router as agent_router
+from src.auth.openapi import docs_bearer_auth
 from src.auth.middleware import AuthMiddleware
 from src.catalogue.router import router as catalogue_router
 from src.config import settings
@@ -72,12 +73,30 @@ app.add_middleware(
 
 app.add_middleware(AuthMiddleware)
 
-app.include_router(catalogue_router, prefix="/api/v1/catalogue", tags=["catalogue"])
 app.include_router(
-    integrations_router, prefix="/api/v1/integrations", tags=["integrations"]
+    catalogue_router,
+    prefix="/api/v1/catalogue",
+    tags=["catalogue"],
+    dependencies=[Depends(docs_bearer_auth)],
 )
-app.include_router(transforms_router, prefix="/api/v1/transforms", tags=["transforms"])
-app.include_router(agent_router, prefix="/api/v1/agent", tags=["agent"])
+app.include_router(
+    integrations_router,
+    prefix="/api/v1/integrations",
+    tags=["integrations"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    transforms_router,
+    prefix="/api/v1/transforms",
+    tags=["transforms"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    agent_router,
+    prefix="/api/v1/agent",
+    tags=["agent"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
 
 
 @app.get("/health")
