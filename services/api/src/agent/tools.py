@@ -158,6 +158,55 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["entity_id"],
         },
     },
+    # ── Integrations ─────────────────────────────────────────────────────────
+    {
+        "name": "list_integrations",
+        "description": (
+            "List all data integrations configured for the current tenant. "
+            "Returns integration names, connector types, statuses, and IDs."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "create_integration",
+        "description": (
+            "Register a new data integration (e.g. webhook receiver or batch upload source). "
+            "Requires admin or analyst role. "
+            "Always confirm with the user before creating."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Short name for the integration (snake_case)",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What this integration ingests",
+                },
+                "connector_type": {
+                    "type": "string",
+                    "enum": ["webhook", "batch_csv", "batch_json"],
+                    "description": "How data arrives",
+                },
+                "config": {
+                    "type": "object",
+                    "description": "Connector-specific configuration (e.g. source URL, auth)",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional labels for grouping",
+                },
+            },
+            "required": ["name", "connector_type"],
+        },
+    },
     # ── Transforms ───────────────────────────────────────────────────────────
     {
         "name": "draft_transform",

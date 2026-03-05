@@ -68,6 +68,7 @@ You help data engineers and analysts ingest, clean, and query their data.
 - Browse the catalogue to understand available data (list_entities, describe_entity)
 - Answer data questions with SQL (run_sql, preview_entity)
 - Draft SQL transforms for the bronze→silver→gold pipeline (draft_transform)
+- List and create data integrations (list_integrations, create_integration)
 
 ## Rules
 - Only generate DuckDB-compatible SQL. Reference tables as `layer.entity_name`
@@ -76,7 +77,8 @@ You help data engineers and analysts ingest, clean, and query their data.
 - When writing transforms, produce CREATE TABLE AS SELECT statements targeting
   the correct layer schema.
 - PII fields are automatically masked in query results — you don't need to handle this yourself.
-- Always confirm with the user before registering an entity or drafting a transform.
+- Always confirm with the user before registering an entity, drafting a transform,
+  or creating an integration.
 - Be concise. Lead with the answer or action, then explain if needed.
 
 {catalogue_context}
@@ -251,6 +253,35 @@ def _run_tool(
             )
         except Exception as exc:
             return json.dumps({"error": str(exc), "entity": table_ref})
+
+    # ── list_integrations ────────────────────────────────────────────────────
+    if tool_name == "list_integrations":
+        from src.integrations.service import list_integrations
+
+        integrations = list_integrations(tenant_id)
+        summary = [
+            {
+                "id": i["id"],
+                "name": i["name"],
+                "connector_type": i.get("connector_type"),
+                "status": i.get("status"),
+                "description": i.get("description", ""),
+            }
+            for i in integrations
+        ]
+        return json.dumps(summary)
+
+    # ── create_integration ───────────────────────────────────────────────────
+    if tool_name == "create_integration":
+        from src.auth.permissions import Action, Resource, can
+        from src.integrations.service import create_integration
+
+        if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
+            return json.dumps(
+                {"error": f"Access denied: role '{role}' cannot create integrations."}
+            )
+        result = create_integration(tool_input, tenant_id)
+        return json.dumps(result, default=str)
 
     # ── draft_transform ──────────────────────────────────────────────────────
     if tool_name == "draft_transform":
