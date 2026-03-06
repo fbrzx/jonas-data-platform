@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { api, type ChatMessage, DEMO_TOKENS, getToken, setToken, getRoleFromToken } from '../lib/api'
+import { api, type ChatMessage } from '../lib/api'
 
 // ── Jonas-form card ────────────────────────────────────────────────────────────
 
@@ -249,16 +249,13 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ messages, setMessages, input, setInput }: ChatPageProps) {
-  const [token, setTokenState] = useState(getToken)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const role = getRoleFromToken(token)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
-  const handleTokenChange = (t: string) => { setToken(t); setTokenState(t); setMessages([]); setError(null) }
   const handleNewChat = () => { setMessages([]); setInput(''); setError(null) }
 
   const sendMessage = async (overrideText?: string) => {
@@ -316,12 +313,6 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  const ROLE_COLORS: Record<string, string> = {
-    admin:   'bg-j-purple-dim text-j-purple border-j-purple',
-    analyst: 'bg-j-accent-dim text-j-accent border-j-accent',
-    viewer:  'bg-j-surface2 text-j-dim border-j-border',
-  }
-
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-j-bg">
       {/* Header */}
@@ -332,33 +323,15 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
           </span>
           <span className="font-mono text-[11px] text-j-dim ml-3">Ask questions about your data</span>
         </div>
-        <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              onClick={handleNewChat}
-              className="px-3 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-border text-j-dim hover:border-j-accent hover:text-j-accent transition-colors"
-              title="Clear conversation and start fresh"
-            >
-              + New
-            </button>
-          )}
-          {DEMO_TOKENS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => handleTokenChange(t.value)}
-              className={`px-3 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border transition-colors ${
-                token === t.value
-                  ? 'bg-j-accent-dim text-j-accent border-j-accent'
-                  : 'bg-j-surface2 text-j-dim border-j-border hover:border-j-border-b hover:text-j-text'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-          <span className={`ml-1 px-2 py-0.5 rounded font-mono text-[10px] border ${ROLE_COLORS[role] ?? ROLE_COLORS.viewer}`}>
-            {role}
-          </span>
-        </div>
+        {messages.length > 0 && (
+          <button
+            onClick={handleNewChat}
+            className="px-3 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-border text-j-dim hover:border-j-accent hover:text-j-accent transition-colors"
+            title="Clear conversation and start fresh"
+          >
+            + New
+          </button>
+        )}
       </div>
 
       {/* Messages */}

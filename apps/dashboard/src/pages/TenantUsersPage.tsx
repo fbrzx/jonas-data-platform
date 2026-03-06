@@ -209,6 +209,7 @@ export default function TenantUsersPage() {
               No active members
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-j-border">
@@ -271,6 +272,7 @@ export default function TenantUsersPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
@@ -282,6 +284,7 @@ export default function TenantUsersPage() {
                 Revoked
               </h2>
             </div>
+            <div className="overflow-x-auto">
             <table className="w-full">
               <tbody>
                 {revoked.map((u: TenantUser) => (
@@ -300,6 +303,7 @@ export default function TenantUsersPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

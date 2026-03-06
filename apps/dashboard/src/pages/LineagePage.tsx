@@ -56,47 +56,50 @@ function EdgeLabel({ edge }: { edge: LineageEdge }) {
   )
 }
 
-// ── Column ────────────────────────────────────────────────────────────────────
+// ── Column header (standalone, for grid alignment) ────────────────────────────
 
-function Column({ layer, nodes }: { layer: keyof typeof LAYER; nodes: LineageNode[] }) {
+function ColumnHeader({ layer, count }: { layer: keyof typeof LAYER; count: number }) {
   const cfg = LAYER[layer]
   return (
-    <div className="flex flex-col gap-3 min-w-0 flex-1">
-      {/* Column header */}
-      <div className={`flex items-center gap-2 pb-2 border-b border-j-border`}>
-        <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-        <span className={`font-mono text-[10px] font-semibold tracking-[0.18em] uppercase ${cfg.text}`}>
-          {cfg.label}
-        </span>
-        <span className="font-mono text-[10px] text-j-dim">· {nodes.length}</span>
-      </div>
-      {nodes.length === 0
-        ? <p className="font-mono text-[10px] text-j-border italic">empty</p>
-        : nodes.map((n) => <NodeCard key={n.id} node={n} />)
-      }
+    <div className="flex items-center gap-2 py-2.5 border-b border-j-border px-1">
+      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className={`font-mono text-[10px] font-semibold tracking-[0.18em] uppercase ${cfg.text}`}>
+        {cfg.label}
+      </span>
+      <span className="font-mono text-[10px] text-j-dim">· {count}</span>
     </div>
   )
 }
 
-// ── Arrow connector ───────────────────────────────────────────────────────────
+// ── Arrow connector header (spacer + label, for grid alignment) ───────────────
 
-function ArrowColumn({ edges, from, to }: { edges: LineageEdge[]; from: string; to: string }) {
+function ArrowHeader() {
+  return (
+    <div className="py-2.5 border-b border-transparent px-2">
+      <div className="h-[14px]" /> {/* matches text line-height of ColumnHeader */}
+    </div>
+  )
+}
+
+// ── Arrow connector content ───────────────────────────────────────────────────
+
+function ArrowContent({ edges, from, to }: { edges: LineageEdge[]; from: string; to: string }) {
   const relevant = edges.filter((e) => e.source_layer === from && e.target_layer === to)
   return (
-    <div className="flex flex-col items-center justify-center gap-2 shrink-0 px-2 min-w-[140px]">
+    <div className="flex flex-col gap-2 pt-3 px-2 min-w-[148px] shrink-0">
       {relevant.length === 0 ? (
-        <div className="flex items-center gap-1 opacity-20">
-          <div className="w-8 border-t border-dashed border-j-border" />
+        <div className="flex items-center gap-1 opacity-20 mt-1">
+          <div className="flex-1 border-t border-dashed border-j-border" />
           <span className="font-mono text-[10px] text-j-dim">→</span>
-          <div className="w-8 border-t border-dashed border-j-border" />
+          <div className="flex-1 border-t border-dashed border-j-border" />
         </div>
       ) : (
         relevant.map((e) => (
-          <div key={e.id} className="flex items-center gap-1 w-full">
-            <div className="w-4 border-t border-j-border flex-none" />
+          <div key={e.id} className="flex items-center gap-0.5 w-full">
+            <div className="w-3 border-t border-j-border shrink-0" />
             <EdgeLabel edge={e} />
-            <div className="flex-1 border-t border-j-border" />
-            <span className="font-mono text-[11px] text-j-dim">›</span>
+            <div className="flex-1 border-t border-j-border min-w-[6px]" />
+            <span className="font-mono text-[11px] text-j-dim shrink-0">›</span>
           </div>
         ))
       )}
@@ -159,13 +162,36 @@ export default function LineagePage() {
             <span className="ml-4 font-mono text-[10px] text-j-dim">arrows = transforms</span>
           </div>
 
-          {/* DAG */}
-          <div className="flex items-start gap-0 overflow-x-auto pb-4">
-            <Column layer="bronze" nodes={nodesByLayer.bronze} />
-            <ArrowColumn edges={data?.edges ?? []} from="bronze" to="silver" />
-            <Column layer="silver" nodes={nodesByLayer.silver} />
-            <ArrowColumn edges={data?.edges ?? []} from="silver" to="gold" />
-            <Column layer="gold" nodes={nodesByLayer.gold} />
+          {/* DAG — header row then content row, so arrow labels align with entity cards */}
+          <div className="overflow-x-auto pb-4">
+            {/* Header row */}
+            <div className="flex items-stretch min-w-max">
+              <div className="flex-1 min-w-[220px]"><ColumnHeader layer="bronze" count={nodesByLayer.bronze.length} /></div>
+              <ArrowHeader />
+              <div className="flex-1 min-w-[220px]"><ColumnHeader layer="silver" count={nodesByLayer.silver.length} /></div>
+              <ArrowHeader />
+              <div className="flex-1 min-w-[220px]"><ColumnHeader layer="gold"   count={nodesByLayer.gold.length}   /></div>
+            </div>
+            {/* Content row */}
+            <div className="flex items-start min-w-max">
+              <div className="flex-1 min-w-[220px] flex flex-col gap-3 pt-3 px-1">
+                {nodesByLayer.bronze.length === 0
+                  ? <p className="font-mono text-[10px] text-j-border italic">empty</p>
+                  : nodesByLayer.bronze.map((n) => <NodeCard key={n.id} node={n} />)}
+              </div>
+              <ArrowContent edges={data?.edges ?? []} from="bronze" to="silver" />
+              <div className="flex-1 min-w-[220px] flex flex-col gap-3 pt-3 px-1">
+                {nodesByLayer.silver.length === 0
+                  ? <p className="font-mono text-[10px] text-j-border italic">empty</p>
+                  : nodesByLayer.silver.map((n) => <NodeCard key={n.id} node={n} />)}
+              </div>
+              <ArrowContent edges={data?.edges ?? []} from="silver" to="gold" />
+              <div className="flex-1 min-w-[220px] flex flex-col gap-3 pt-3 px-1">
+                {nodesByLayer.gold.length === 0
+                  ? <p className="font-mono text-[10px] text-j-border italic">empty</p>
+                  : nodesByLayer.gold.map((n) => <NodeCard key={n.id} node={n} />)}
+              </div>
+            </div>
           </div>
 
           {/* Summary */}
