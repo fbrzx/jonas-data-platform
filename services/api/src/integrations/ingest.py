@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.db.connection import get_conn
+from src.db.tenant_schemas import layer_schema, safe_tenant_id
+from src.transforms.triggers import fire_on_data_changed
 
 
 def _now() -> str:
@@ -55,10 +57,10 @@ def _record_run(
     return run_id
 
 
-def _bronze_table(source: str) -> str:
-    """Derive a safe bronze table name from the source identifier."""
+def _bronze_table(source: str, tenant_id: str) -> str:
+    """Derive a tenant-scoped safe bronze table name from the source identifier."""
     safe = "".join(c if c.isalnum() else "_" for c in source.lower())
-    return f"bronze.{safe}"
+    return f"{layer_schema('bronze', tenant_id)}.{safe}"
 
 
 def _safe_col(name: str) -> str:
@@ -66,8 +68,9 @@ def _safe_col(name: str) -> str:
     return "".join(c if c.isalnum() or c == "_" else "_" for c in name)
 
 
-def _ensure_bronze_schema(conn: Any) -> None:
-    conn.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+def _ensure_bronze_schema(conn: Any, tenant_id: str) -> None:
+    schema = f"bronze_{safe_tenant_id(tenant_id)}"
+    conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")  # noqa: S608
 
 
 def land_webhook(
@@ -76,11 +79,12 @@ def land_webhook(
     metadata: dict[str, Any],
     tenant_id: str,
     integration_id: str | None = None,
+    _fire_trigger: bool = True,
 ) -> dict[str, Any]:
     """Land a webhook payload into the bronze layer."""
     conn = get_conn()
-    table = _bronze_table(source)
-    _ensure_bronze_schema(conn)
+    table = _bronze_table(source, tenant_id)
+    _ensure_bronze_schema(conn, tenant_id)
     started_at = _now()
 
     conn.execute(
@@ -113,6 +117,8 @@ def land_webhook(
         }
 
     run_id = _record_run(integration_id, "success", started_at, 1, 1, 0, [])
+    if _fire_trigger:
+        fire_on_data_changed(source, "bronze", tenant_id)
     return {
         "rows_received": 1,
         "rows_landed": 1,
@@ -130,8 +136,8 @@ def land_batch_csv(
 ) -> dict[str, Any]:
     """Parse a CSV upload and land rows into the bronze layer."""
     conn = get_conn()
-    table = _bronze_table(source)
-    _ensure_bronze_schema(conn)
+    table = _bronze_table(source, tenant_id)
+    _ensure_bronze_schema(conn, tenant_id)
     started_at = _now()
     text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
@@ -147,7 +153,7 @@ def land_batch_csv(
             "run_id": run_id,
         }
 
-    raw_cols = list(rows[0].keys())
+    raw_cols = list(rows[0].keys())  # type: ignore[union-attr]
     cols = [_safe_col(c) for c in raw_cols]
     col_defs = ", ".join(f"{c} VARCHAR" for c in cols)
     conn.execute(
@@ -181,6 +187,8 @@ def land_batch_csv(
     run_id = _record_run(
         integration_id, status, started_at, len(rows), landed, rejected, errors
     )
+    if landed > 0:
+        fire_on_data_changed(source, "bronze", tenant_id)
     return {
         "rows_received": len(rows),
         "rows_landed": landed,
@@ -210,7 +218,7 @@ def land_api_pull(
         return {
             "rows_received": 0,
             "rows_landed": 0,
-            "target_table": _bronze_table(source),
+            "target_table": _bronze_table(source, tenant_id),
             "errors": [msg],
             "run_id": run_id,
         }
@@ -220,7 +228,7 @@ def land_api_pull(
         return {
             "rows_received": 0,
             "rows_landed": 0,
-            "target_table": _bronze_table(source),
+            "target_table": _bronze_table(source, tenant_id),
             "errors": [msg],
             "run_id": run_id,
         }
@@ -233,7 +241,7 @@ def land_api_pull(
         return {
             "rows_received": 0,
             "rows_landed": 0,
-            "target_table": _bronze_table(source),
+            "target_table": _bronze_table(source, tenant_id),
             "errors": [msg],
             "run_id": run_id,
         }
@@ -244,7 +252,9 @@ def land_api_pull(
     all_errors: list[str] = []
     total_landed = 0
     for record in records:
-        result = land_webhook(source, record, {"pulled_from": url}, tenant_id)
+        result = land_webhook(
+            source, record, {"pulled_from": url}, tenant_id, _fire_trigger=False
+        )
         total_landed += result["rows_landed"]
         all_errors.extend(result.get("errors", []))
 
@@ -261,10 +271,12 @@ def land_api_pull(
         rejected,
         all_errors,
     )
+    if total_landed > 0:
+        fire_on_data_changed(source, "bronze", tenant_id)
     return {
         "rows_received": len(records),
         "rows_landed": total_landed,
-        "target_table": _bronze_table(source),
+        "target_table": _bronze_table(source, tenant_id),
         "errors": all_errors,
         "run_id": run_id,
     }
@@ -289,7 +301,7 @@ def land_batch_json(
     all_errors: list[str] = []
     total_landed = 0
     for record in data:
-        result = land_webhook(source, record, {}, tenant_id)
+        result = land_webhook(source, record, {}, tenant_id, _fire_trigger=False)
         total_landed += result["rows_landed"]
         all_errors.extend(result.get("errors", []))
 
@@ -306,10 +318,12 @@ def land_batch_json(
         rejected,
         all_errors,
     )
+    if total_landed > 0:
+        fire_on_data_changed(source, "bronze", tenant_id)
     return {
         "rows_received": len(data),
         "rows_landed": total_landed,
-        "target_table": _bronze_table(source),
+        "target_table": _bronze_table(source, tenant_id),
         "errors": all_errors,
         "run_id": run_id,
     }

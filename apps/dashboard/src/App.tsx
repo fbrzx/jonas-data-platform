@@ -9,6 +9,7 @@ import LineagePage from './pages/LineagePage'
 import DashboardPage from './pages/DashboardPage'
 import AuditPage from './pages/AuditPage'
 import LoginPage from './pages/LoginPage'
+import AcceptInvitePage from './pages/AcceptInvitePage'
 import TenantConfigPage from './pages/TenantConfigPage'
 import TenantUsersPage from './pages/TenantUsersPage'
 import { api, getRoleFromToken, getToken, isLoggedIn } from './lib/api'
@@ -135,6 +136,7 @@ export default function App() {
       <TokenWatcher />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route
           path="/*"
           element={

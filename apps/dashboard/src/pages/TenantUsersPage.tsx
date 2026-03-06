@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
-import type { TenantUser } from '../lib/api'
+import type { TenantUser, InviteResponse } from '../lib/api'
 
 const ROLES = ['admin', 'analyst', 'viewer'] as const
 
@@ -18,48 +18,72 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 function InviteModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient()
-  const [form, setForm] = useState({ email: '', display_name: '', password: '', role: 'analyst' })
+  const [form, setForm] = useState({ email: '', role: 'analyst' })
   const [err, setErr] = useState<string | null>(null)
+  const [sent, setSent] = useState<InviteResponse | null>(null)
 
   const mutation = useMutation({
-    mutationFn: () => api.tenant.createUser(form),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tenant-users'] })
-      onClose()
-    },
-    onError: (e) => setErr(e instanceof Error ? e.message : 'Failed to create user'),
+    mutationFn: () => api.tenant.inviteUser(form),
+    onSuccess: (data) => setSent(data),
+    onError: (e) => setErr(e instanceof Error ? e.message : 'Failed to send invite'),
   })
+
+  if (sent) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="w-full max-w-sm bg-j-surface border border-j-border rounded-lg overflow-hidden shadow-2xl">
+          <div className="px-6 py-4 border-b border-j-border flex items-center justify-between">
+            <h2 className="font-mono text-[11px] font-semibold text-j-bright tracking-widest uppercase">
+              Invite Sent
+            </h2>
+            <button onClick={onClose} className="font-mono text-j-dim hover:text-j-text text-xs">✕</button>
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            <p className="font-mono text-[11px] text-j-text">
+              Invite sent to <span className="text-j-bright">{sent.email}</span> as <span className="text-j-accent">{sent.role}</span>.
+            </p>
+            <p className="font-mono text-[10px] text-j-dim">
+              Check Mailpit at <span className="text-j-text">http://localhost:8025</span> in dev, or share the link below:
+            </p>
+            <div className="bg-j-bg border border-j-border rounded px-3 py-2">
+              <p className="font-mono text-[9px] text-j-dim break-all">{sent.invite_link}</p>
+            </div>
+            <p className="font-mono text-[10px] text-j-dim">Expires: {new Date(sent.expires_at).toLocaleString()}</p>
+            <button
+              onClick={onClose}
+              className="w-full font-mono text-[10px] tracking-[0.08em] uppercase bg-j-accent text-j-bg py-2 rounded hover:opacity-90"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-sm bg-j-surface border border-j-border rounded-lg overflow-hidden shadow-2xl">
         <div className="px-6 py-4 border-b border-j-border flex items-center justify-between">
           <h2 className="font-mono text-[11px] font-semibold text-j-bright tracking-widest uppercase">
-            Add User
+            Invite User
           </h2>
           <button onClick={onClose} className="font-mono text-j-dim hover:text-j-text text-xs">✕</button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
-          {[
-            { label: 'Email', key: 'email', type: 'email', placeholder: 'user@acme.io' },
-            { label: 'Display Name', key: 'display_name', type: 'text', placeholder: 'Jane Doe' },
-            { label: 'Password', key: 'password', type: 'password', placeholder: '••••••••' },
-          ].map(({ label, key, type, placeholder }) => (
-            <div key={key}>
-              <label className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim block mb-1.5">
-                {label}
-              </label>
-              <input
-                type={type}
-                placeholder={placeholder}
-                value={form[key as keyof typeof form]}
-                onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="w-full bg-j-bg border border-j-border rounded px-3 py-2 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
-              />
-            </div>
-          ))}
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim block mb-1.5">
+              Email
+            </label>
+            <input
+              type="email"
+              placeholder="user@acme.io"
+              value={form.email}
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              className="w-full bg-j-bg border border-j-border rounded px-3 py-2 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+            />
+          </div>
 
           <div>
             <label className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim block mb-1.5">
@@ -74,6 +98,10 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
 
+          <p className="font-mono text-[10px] text-j-dim">
+            An invite link will be sent. The user sets their own password.
+          </p>
+
           {err && (
             <p className="font-mono text-[10px] text-j-red bg-j-red-dim border border-j-red rounded px-3 py-2">
               {err}
@@ -83,10 +111,10 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           <div className="flex gap-2 pt-1">
             <button
               onClick={() => mutation.mutate()}
-              disabled={mutation.isPending || !form.email || !form.password || !form.display_name}
+              disabled={mutation.isPending || !form.email}
               className="flex-1 font-mono text-[10px] tracking-[0.08em] uppercase bg-j-accent text-j-bg py-2 rounded hover:opacity-90 disabled:opacity-40"
             >
-              {mutation.isPending ? 'Creating…' : 'Create User'}
+              {mutation.isPending ? 'Sending…' : 'Send Invite'}
             </button>
             <button
               onClick={onClose}

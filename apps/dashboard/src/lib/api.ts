@@ -261,6 +261,19 @@ export interface TenantUserCreate {
   role: string
 }
 
+export interface InviteCreate {
+  email: string
+  role: string
+}
+
+export interface InviteResponse {
+  invite_id: string
+  email: string
+  role: string
+  expires_at: string
+  invite_link: string
+}
+
 // ── Fetch wrapper ─────────────────────────────────────────────────────────────
 
 let _refreshing: Promise<void> | null = null
@@ -333,6 +346,11 @@ export const api = {
       }),
     me: () => request<{ user_id: string; email: string; tenant_id: string; role: string }>('/auth/me'),
     logout: () => { clearTokens() },
+    acceptInvite: (token: string, display_name: string, password: string) =>
+      request<{ access_token: string; refresh_token: string; token_type: string }>(
+        '/auth/accept-invite',
+        { method: 'POST', body: JSON.stringify({ token, display_name, password }) }
+      ),
   },
   catalogue: {
     list: () => request<Entity[]>('/catalogue/entities'),
@@ -431,6 +449,8 @@ export const api = {
     listUsers: () => request<TenantUser[]>('/tenant/users'),
     createUser: (body: TenantUserCreate) =>
       request<TenantUser>('/tenant/users', { method: 'POST', body: JSON.stringify(body) }),
+    inviteUser: (body: InviteCreate) =>
+      request<InviteResponse>('/tenant/users/invite', { method: 'POST', body: JSON.stringify(body) }),
     changeRole: (userId: string, role: string) =>
       request<{ user_id: string; role: string }>(`/tenant/users/${userId}/role`, {
         method: 'PATCH',

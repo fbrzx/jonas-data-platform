@@ -104,6 +104,91 @@ async def refresh(body: RefreshRequest) -> dict[str, str]:
     }
 
 
+class AcceptInviteRequest(BaseModel):
+    token: str
+    display_name: str
+    password: str
+
+
+@router.post("/accept-invite", response_model=TokenResponse)
+async def accept_invite(body: AcceptInviteRequest) -> dict[str, str]:
+    from datetime import UTC, datetime
+
+    from src.auth.jwt import hash_password
+
+    conn = get_conn()
+    now = datetime.now(UTC)
+
+    row = conn.execute(
+        "SELECT id, tenant_id, email, role, expires_at, used_at FROM platform.invite WHERE token = ?",
+        [body.token],
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Invalid or expired invite link")
+
+    invite_id, tenant_id, email, role, expires_at_str, used_at = row
+    if used_at:
+        raise HTTPException(status_code=409, detail="This invite has already been used")
+
+    # Check expiry
+    try:
+        expires_at = datetime.fromisoformat(str(expires_at_str).replace("Z", "+00:00"))
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if now.replace(tzinfo=UTC) > expires_at:
+            raise HTTPException(status_code=410, detail="This invite link has expired")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # If parsing fails, proceed (lenient)
+
+    # Check if email already registered
+    existing = conn.execute(
+        "SELECT id FROM platform.user_account WHERE email = ?", [email]
+    ).fetchone()
+    if existing:
+        raise HTTPException(
+            status_code=409, detail="An account with this email already exists"
+        )
+
+    pw_hash = hash_password(body.password)
+    now_str = now.isoformat()
+    user_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
+
+    conn.execute(
+        "INSERT INTO platform.user_account (id, email, display_name, password_hash, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        [user_id, email, body.display_name, pw_hash, now_str],
+    )
+
+    membership_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
+    conn.execute(
+        "INSERT INTO platform.tenant_membership (id, tenant_id, user_id, role, granted_at, granted_by) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [membership_id, tenant_id, user_id, role, now_str, "invite"],
+    )
+
+    conn.execute(
+        "UPDATE platform.invite SET used_at = ? WHERE id = ?",
+        [now_str, invite_id],
+    )
+
+    write_audit(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        action="accept_invite",
+        resource_type="user",
+        resource_id=user_id,
+        detail={"email": email, "role": role},
+    )
+
+    return {
+        "access_token": create_access_token(user_id, email, tenant_id, role),
+        "refresh_token": create_refresh_token(user_id, tenant_id),
+        "token_type": "bearer",
+    }
+
+
 @router.get("/me")
 async def me(request: Request) -> dict[str, Any]:
     user = getattr(request.state, "user", None) or {}

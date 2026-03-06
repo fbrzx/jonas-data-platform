@@ -385,6 +385,24 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "DuckDB SQL — typically a CREATE TABLE AS SELECT or INSERT INTO",
                 },
+                "trigger_mode": {
+                    "type": "string",
+                    "enum": ["manual", "on_change"],
+                    "description": (
+                        "When to run: 'manual' (default, requires explicit execute) or "
+                        "'on_change' (auto-runs when a watched entity receives new data). "
+                        "Requires admin approval before auto-triggering."
+                    ),
+                },
+                "watch_entities": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Entity IDs to watch (UUIDs). When any of these entities receive new data "
+                        "and trigger_mode='on_change', this transform runs automatically. "
+                        "Required when trigger_mode='on_change'."
+                    ),
+                },
             },
             "required": ["name", "sql", "source_layer", "target_layer"],
         },
@@ -423,8 +441,95 @@ TOOLS: list[dict[str, Any]] = [
                     "enum": ["silver", "gold"],
                     "description": "Updated target layer (optional)",
                 },
+                "trigger_mode": {
+                    "type": "string",
+                    "enum": ["manual", "on_change"],
+                    "description": "Change the trigger mode (optional)",
+                },
+                "watch_entities": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Updated list of entity IDs to watch (optional)",
+                },
             },
             "required": ["transform_id"],
+        },
+    },
+    # ── Memory ────────────────────────────────────────────────────────────────
+    {
+        "name": "save_memory",
+        "description": (
+            "Store a memory item for this tenant so it can be recalled in future sessions. "
+            "Call this after solving a problem, learning a user preference, or discovering "
+            "something important about the data. Good candidates: SQL patterns that worked, "
+            "column quirks, user naming conventions, recurring workflows. "
+            "Do NOT save trivial or session-specific information."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "enum": ["routine", "solution", "preference", "context"],
+                    "description": (
+                        "routine — a recurring workflow the user wants automated; "
+                        "solution — a working SQL pattern or fix; "
+                        "preference — a naming/style choice the user has expressed; "
+                        "context — a data quality finding or important fact about an entity"
+                    ),
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "One-sentence description (used for recall matching)",
+                },
+                "content": {
+                    "description": (
+                        "Structured detail: dict with relevant keys "
+                        '(e.g. {"sql": "...", "entity": "orders"}) or plain string'
+                    ),
+                },
+            },
+            "required": ["category", "summary", "content"],
+        },
+    },
+    {
+        "name": "recall_memories",
+        "description": (
+            "Search stored memories for this tenant by keyword. "
+            "Use this when you need to check if a pattern or preference was previously recorded, "
+            "beyond what is auto-injected in the system prompt."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Keywords to search for (entity names, column names, topic)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results to return (default 5)",
+                    "default": 5,
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "forget_memory",
+        "description": (
+            "Delete a specific memory item by ID. "
+            "Use when a memory is outdated, incorrect, or the user asks to forget something."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "memory_id": {
+                    "type": "string",
+                    "description": "UUID of the memory to delete",
+                },
+            },
+            "required": ["memory_id"],
         },
     },
 ]

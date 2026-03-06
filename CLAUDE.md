@@ -20,7 +20,9 @@ Before writing any code, read these docs in order:
 - Phase 1 complete: FastAPI service + React dashboard fully built
 - Phase 2 complete: agent core, schema inference, PII masking, NL-to-SQL, lineage view
 - Phase 3 complete: streaming SSE chat, 13 agent tools, full integration + transform CRUD
-- Phase 4 in progress: connectors rename done, discover_api tool done, silver validation done
+- Phase 4 complete: connectors rename, discover_api, scheduler, audit page, jonas-form
+- Phase 5 complete: JWT auth, tenant config/users, invite-by-email, schema-per-tenant
+- Phase 6 complete: event-driven transforms, agent memory, code refactoring, JSON skills
 
 ## Phase 1 Status (DONE)
 
@@ -71,7 +73,19 @@ Bug fixes applied (session 2025-03):
 - `audit/router.py`: `rows_affected` → `rows_produced` (transform_run column name)
 - `scripts/reset_demo.py`: `/integrations` → `/connectors` paths
 
-## Phase 5 Status (IN PROGRESS)
+## Phase 6 Status (COMPLETE)
+
+> Full plan: [`.claude/docs/phase-6-plan.md`](.claude/docs/phase-6-plan.md)
+
+1. ✅ **WS1 — Defensive tool handling** — all `tool_input["x"]` → `.get()` + error returns; small LLMs survive missing fields
+2. ✅ **WS2 — JSON skills + context pruning** — `agent/skills/json_patterns.py` (4 DuckDB patterns injected when webhook entities exist); `_MAX_SQL_ROWS=20`, `_MAX_PREVIEW_ROWS=10`, `_MAX_TOOL_RESULT_CHARS=4000`; hard char-cap applied at dispatch
+3. ✅ **WS3 — Event-driven transforms** — `trigger_mode` ('manual'|'on_change') + `watch_entities` on transform; `transforms/triggers.py` with debounce (30s), cascade cap (5), cycle guard; fires after ingest and transform execution
+4. ✅ **WS4 — Agent memory** — `audit.agent_memory` table; `agent/memory.py` (save/recall/forget/decay/prune); 3 new tools; keyword relevance + score decay; injected into system prompt
+5. ✅ **WS5 — Code refactoring** — `agent/service.py` 1242 → 198 lines; `agent/prompt.py`, `agent/handlers/` (5 modules), `catalogue/context.py`, `transforms/validation.py`
+
+Migrations: `db/007_trigger_mode.sql`, `db/008_agent_memory.sql`
+
+## Phase 5 Status (COMPLETE)
 
 > Full plan: [`.claude/docs/phase-5-plan.md`](.claude/docs/phase-5-plan.md)
 
@@ -85,10 +99,9 @@ Bug fixes applied (session 2025-03):
 7. ✅ **Tenant configuration** — `GET/PATCH /api/v1/tenant/config`; `platform.tenant_config` table (migration `005_tenant.sql`); `TenantConfigPage.tsx` (LLM provider/model, PII toggle, limits); admin-only sidebar entry
 8. ✅ **Tenant user administration** — `GET/POST /api/v1/tenant/users`, `PATCH .../role`, `DELETE .../{id}` (soft-revoke via `revoked_at`); `TenantUsersPage.tsx` (table, inline role edit, add-user modal); admin-only sidebar entry
 
-Deferred (Phase 5 remaining):
-- Invite-by-email flow (requires SMTP / Mailpit wiring)
-- Schema-per-tenant data segregation
-- MotherDuck multi-database path
+9. ✅ **Schema-per-tenant** — `bronze_{tenant_id}`, `silver_{tenant_id}`, `gold_{tenant_id}` schemas; `src/db/tenant_schemas.py` with `layer_schema()`, `inject_tenant_schemas()`, `provision_tenant_schemas()`; all ingest/catalogue/transform/agent service layers updated; schemas provisioned for all tenants on bootstrap
+10. ✅ **Invite-by-email** — `platform.invite` table (migration `006_invite.sql`); `POST /api/v1/tenant/users/invite` (email+role only); `POST /api/v1/auth/accept-invite` (token+name+password); Mailpit in docker-compose; `AcceptInvitePage.tsx`; invite modal updated to email-only flow
+11. ✅ **MotherDuck** — already supported via `MOTHERDUCK_TOKEN` env; schema-per-tenant approach works identically; database-per-tenant path deferred to Phase 7
 
 ## Technical Notes
 

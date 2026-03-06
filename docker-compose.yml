@@ -22,8 +22,15 @@ services:
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-ollama}
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
       CLAUDE_BASE_URL: ${CLAUDE_BASE_URL:-https://api.anthropic.com/v1}
+      # SMTP — points to Mailpit service below (web UI at http://localhost:8025)
+      SMTP_ENABLED: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: ${SMTP_FROM:-noreply@jonas.local}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
       # Uncomment to use MotherDuck instead of local file:
       # MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
+      # ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -32,3 +39,14 @@ services:
       start_period: 15s
       retries: 3
     restart: unless-stopped
+    depends_on:
+      - mailpit
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI — http://localhost:8025
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1

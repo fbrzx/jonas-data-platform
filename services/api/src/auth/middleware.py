@@ -19,6 +19,7 @@ PUBLIC_PATHS = {
     "/redoc",
     "/api/v1/auth/login",
     "/api/v1/auth/refresh",
+    "/api/v1/auth/accept-invite",
 }
 
 _DEMO_TOKENS: dict[str, dict[str, Any]] = {
@@ -64,7 +65,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def _extract_token(request: Request) -> str | None:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
-            return auth_header[len("Bearer "):]
+            return auth_header[len("Bearer ") :]
         return request.headers.get("X-API-Token")
 
     def _resolve_token(self, token: str) -> dict[str, Any]:

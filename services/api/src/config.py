@@ -42,5 +42,14 @@ class Settings(BaseSettings):
     claude_api_key: str = ""
     claude_base_url: str = "https://api.anthropic.com/v1"
 
+    # SMTP (Mailpit in dev, real SMTP in prod)
+    smtp_enabled: bool = False
+    smtp_host: str = "localhost"
+    smtp_port: int = 1025
+    smtp_from: str = "noreply@jonas.local"
+
+    # Frontend base URL — used to construct invite links
+    app_base_url: str = "http://localhost:5173"
+
 
 settings = Settings()

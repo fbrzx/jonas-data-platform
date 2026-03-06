@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.db.connection import get_conn
+from src.db.tenant_schemas import layer_schema
 
 # Layers each role can access
 _ROLE_LAYERS: dict[str, list[str]] = {
@@ -230,7 +231,7 @@ def preview_entity(
     if not entity:
         return None
 
-    table_ref = f"{entity['layer']}.{entity['name']}"
+    table_ref = f"{layer_schema(entity['layer'], tenant_id)}.{entity['name']}"
     fields = get_entity_fields(entity_id)
     pii_field_names = {f["name"] for f in fields if f.get("is_pii")}
     has_pii_access = role in ("owner", "admin")
@@ -269,7 +270,16 @@ def preview_entity(
 
 
 def build_catalogue_context(tenant_id: str, role: str) -> str:
-    """Return a compact text description of the catalogue, integrations and transforms."""
+    """Delegate to catalogue.context to avoid duplication."""
+    from src.catalogue.context import build_catalogue_context as _build
+
+    return _build(tenant_id, role)
+
+
+def _build_catalogue_context_legacy(
+    tenant_id: str, role: str
+) -> str:  # noqa: dead-code
+    """Original implementation — kept temporarily, not called."""
     entities = get_accessible_entities(tenant_id, role)
 
     lines: list[str] = []
@@ -295,11 +305,12 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
             )
 
             # Physical columns actually in DuckDB (source of truth for SQL)
+            scoped_schema = layer_schema(layer, tenant_id)
             try:
                 phys_rows = conn.execute(
                     "SELECT column_name, data_type FROM information_schema.columns "
                     "WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position",
-                    [layer, name],
+                    [scoped_schema, name],
                 ).fetchall()
                 phys_cols = [r[0] for r in phys_rows]
             except Exception:
@@ -332,7 +343,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
                     # Surface the actual payload keys from a sample row, plus array field hints
                     try:
                         sample_row = conn.execute(
-                            f"SELECT payload FROM {layer}.{name} LIMIT 1"  # noqa: S608
+                            f"SELECT payload FROM {scoped_schema}.{name} LIMIT 1"  # noqa: S608
                         ).fetchone()
                         if sample_row and sample_row[0]:
                             sample_payload = (

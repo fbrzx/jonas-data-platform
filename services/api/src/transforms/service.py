@@ -8,90 +8,27 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.db.connection import get_conn
+from src.transforms.validation import (
+    extract_select_blocks as _extract_select_blocks,
+    safe_table_name as _safe_table_name,
+    split_sql_statements as _split_sql_statements,
+    validate_identifier as _validate_identifier,
+    validate_transform_sql as _validate_transform_sql,
+)
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+def _ensure_layer_schema(conn: Any, layer: str, tenant_id: str = "") -> str:
+    from src.db.tenant_schemas import layer_schema as _layer_schema
 
-_ALLOWED_STMT = re.compile(
-    r"^\s*(SELECT|INSERT\s+OR\s+REPLACE|INSERT\s+OR\s+IGNORE|CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?TABLE)",
-    re.IGNORECASE | re.DOTALL,
-)
-
-
-def _split_sql_statements(sql: str) -> list[str]:
-    """Split semicolon-delimited SQL into individual non-empty statements.
-
-    Strips leading comment lines from each chunk so that a statement beginning
-    with a block of comments is not mistakenly treated as empty.
-    """
-    stmts = []
-    for chunk in sql.split(";"):
-        lines = [ln for ln in chunk.splitlines() if not ln.strip().startswith("--")]
-        cleaned = "\n".join(lines).strip()
-        if cleaned:
-            stmts.append(cleaned)
-    return stmts
-
-
-def _validate_transform_sql(sql: str) -> None:
-    """Raise ValueError if any statement uses forbidden operations."""
-    for stmt in _split_sql_statements(sql):
-        if not _ALLOWED_STMT.match(stmt):
-            raise ValueError(
-                "Transform SQL must only contain SELECT, INSERT OR REPLACE, "
-                "INSERT OR IGNORE, or CREATE TABLE statements. "
-                "DROP, DELETE, UPDATE, and TRUNCATE are not permitted."
-            )
-
-
-def _extract_select_blocks(sql: str) -> list[str]:
-    """Return all SELECT sub-queries from a (possibly multi-statement) SQL block.
-
-    Used for dry-run validation — we only want to execute the SELECT parts,
-    not CREATE TABLE or INSERT INTO (which reference tables that may not exist yet).
-    """
-    blocks: list[str] = []
-    for stmt in _split_sql_statements(sql):
-        # CTAS: CREATE TABLE ... AS SELECT ...
-        m = re.search(r"(?i)\bAS\s+(SELECT\b.+)", stmt, re.DOTALL)
-        if m:
-            blocks.append(m.group(1).strip())
-            continue
-        # INSERT [OR ...] INTO table SELECT ...
-        m = re.search(
-            r"(?i)\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+\S+\s+(SELECT\b.+)", stmt, re.DOTALL
-        )
-        if m:
-            blocks.append(m.group(1).strip())
-            continue
-        # Bare SELECT
-        if re.match(r"(?i)\s*SELECT\b", stmt):
-            blocks.append(stmt)
-    return blocks
-
-
-def _validate_identifier(value: str, field_name: str) -> str:
-    candidate = value.strip().lower()
-    if not _SAFE_IDENTIFIER.fullmatch(candidate):
-        raise ValueError(f"Invalid {field_name}: {value!r}")
-    return candidate
-
-
-def _safe_table_name(value: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9_]", "_", value.strip().lower())
-    cleaned = cleaned.strip("_")
-    if not cleaned:
-        return "transform_output"
-    if cleaned[0].isdigit():
-        return f"t_{cleaned}"
-    return cleaned
-
-
-def _ensure_layer_schema(conn: Any, layer: str) -> str:
+    if tenant_id:
+        schema = _layer_schema(layer, tenant_id)
+        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")  # noqa: S608
+        return schema
+    # Fallback: bare layer name (used in tests / no-tenant context)
     safe_layer = _validate_identifier(layer, "layer")
     conn.execute(f"CREATE SCHEMA IF NOT EXISTS {safe_layer}")  # noqa: S608
     return safe_layer
@@ -127,12 +64,17 @@ def create_transform(
     conn = get_conn()
     transform_id = str(uuid.uuid4())
     now = _now()
+    trigger_mode = data.get("trigger_mode", "manual")
+    if trigger_mode not in ("manual", "schedule", "on_change"):
+        trigger_mode = "manual"
+    watch_entities = data.get("watch_entities", [])
     conn.execute(
         """
         INSERT INTO transforms.transform
             (id, tenant_id, name, description, source_layer, target_layer,
-             transform_sql, status, created_by, tags, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
+             transform_sql, status, created_by, tags, trigger_mode, watch_entities,
+             created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)
         """,
         [
             transform_id,
@@ -144,6 +86,8 @@ def create_transform(
             data.get("sql", data.get("transform_sql", "")),
             created_by,
             json.dumps(data.get("tags", [])),
+            trigger_mode,
+            json.dumps(watch_entities),
             now,
             now,
         ],
@@ -161,7 +105,7 @@ def update_transform(
         return None
 
     is_draft = existing.get("status") == "draft"
-    _JSON_COLUMNS = {"tags"}
+    _JSON_COLUMNS = {"tags", "watch_entities"}
     _COLUMN_MAP = {"sql": "transform_sql"}
 
     db_updates: dict[str, Any] = {}
@@ -220,8 +164,8 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         raise ValueError("Only approved transforms can be executed")
 
     conn = get_conn()
-    _ensure_layer_schema(conn, str(transform["source_layer"]))
-    target_layer = _ensure_layer_schema(conn, str(transform["target_layer"]))
+    _ensure_layer_schema(conn, str(transform["source_layer"]), tenant_id)
+    target_layer = _ensure_layer_schema(conn, str(transform["target_layer"]), tenant_id)
     start = time.monotonic()
     errors: list[str] = []
     rows_affected = 0
@@ -262,7 +206,9 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         errors.append(str(exc))
 
     if not errors:
-        for sel in _extract_select_blocks(sql):
+        from src.db.tenant_schemas import inject_tenant_schemas as _inject
+
+        for sel in _extract_select_blocks(_inject(sql, tenant_id)):
             try:
                 conn.execute(
                     f"SELECT * FROM ({sel.rstrip(';')}) AS _pre_validate_q LIMIT 1"  # noqa: S608
@@ -288,7 +234,9 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         # Execute each statement in sequence — DuckDB conn.execute() only runs
         # one statement at a time, so multi-statement transforms (CREATE + INSERT)
         # must be split and executed individually.
-        stmts = _split_sql_statements(sql)
+        from src.db.tenant_schemas import inject_tenant_schemas
+
+        stmts = _split_sql_statements(inject_tenant_schemas(sql, tenant_id))
         try:
             for stmt in stmts:
                 conn.execute(stmt)
@@ -329,7 +277,7 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         [completed_at, transform_id],
     )
 
-    return {
+    result = {
         "transform_id": transform_id,
         "rows_affected": rows_affected,
         "duration_ms": round(duration_ms, 2),
@@ -337,6 +285,16 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         "executed_at": completed_at,
         "errors": errors,
     }
+
+    # Fire on_change cascade: notify watchers of the target entity (non-blocking)
+    if not errors:
+        target_name_only = target_table.rsplit(".", 1)[-1]
+        target_layer_str = str(transform.get("target_layer", "silver"))
+        from src.transforms.triggers import fire_on_data_changed
+
+        fire_on_data_changed(target_name_only, target_layer_str, tenant_id)
+
+    return result
 
 
 def delete_transform(transform_id: str, tenant_id: str) -> None:

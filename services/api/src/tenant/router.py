@@ -116,6 +116,79 @@ async def list_users(request: Request) -> list[dict[str, Any]]:
     return [dict(zip(cols, r)) for r in rows]
 
 
+class InviteCreate(BaseModel):
+    email: str
+    role: str = "analyst"
+
+
+@router.post("/users/invite", status_code=202)
+async def invite_user(request: Request, body: InviteCreate) -> dict[str, Any]:
+    require_permission(_user(request), Resource.USER, Action.ADMIN)
+    tenant_id = _tenant(request)
+    admin_id = _user(request).get("user_id")
+    admin_email = _user(request).get("email", "")
+
+    if body.role not in _VALID_ROLES:
+        raise HTTPException(
+            status_code=422, detail=f"role must be one of {sorted(_VALID_ROLES)}"
+        )
+
+    import secrets
+    from datetime import UTC, datetime, timedelta
+
+    from src.auth.email import send_invite_email
+    from src.config import settings
+
+    conn = get_conn()
+    now = datetime.now(UTC)
+    token = secrets.token_urlsafe(32)
+    expires_at = (now + timedelta(hours=72)).isoformat()
+    invite_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
+
+    conn.execute(
+        "INSERT INTO platform.invite (id, tenant_id, email, role, token, expires_at, created_by, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            invite_id,
+            tenant_id,
+            body.email,
+            body.role,
+            token,
+            expires_at,
+            admin_id,
+            now.isoformat(),
+        ],
+    )
+
+    invite_link = f"{settings.app_base_url}/accept-invite?token={token}"
+    try:
+        send_invite_email(
+            to=body.email,
+            invite_link=invite_link,
+            role=body.role,
+            invited_by=admin_email,
+        )
+    except Exception as exc:
+        print(f"[tenant] Email send failed: {exc!r}")
+        # Still return success — admin can share the link manually
+
+    write_audit(
+        tenant_id=tenant_id,
+        user_id=admin_id,
+        action="invite_user",
+        resource_type="invite",
+        resource_id=invite_id,
+        detail={"email": body.email, "role": body.role},
+    )
+    return {
+        "invite_id": invite_id,
+        "email": body.email,
+        "role": body.role,
+        "expires_at": expires_at,
+        "invite_link": invite_link,
+    }
+
+
 class UserCreate(BaseModel):
     email: str
     display_name: str

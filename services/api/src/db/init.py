@@ -16,6 +16,9 @@ _MIGRATIONS = [
     "003_cron_audit.sql",
     "004_auth.sql",
     "005_tenant.sql",
+    "006_invite.sql",
+    "007_trigger_mode.sql",
+    "008_agent_memory.sql",
 ]
 
 _ORDERS_JSON_TRANSFORM_SQL = """CREATE OR REPLACE TABLE silver.orders_cleaned AS
@@ -132,6 +135,28 @@ def bootstrap() -> None:
                 )
 
     seed_admin_password()
+
+    # Provision tenant-scoped data lake schemas for all existing tenants
+    try:
+        from src.db.tenant_schemas import get_all_tenant_ids, provision_tenant_schemas
+
+        for tid in get_all_tenant_ids(conn):
+            provision_tenant_schemas(tid)
+    except Exception as exc:
+        print(f"[db.init] Schema provisioning warning: {exc!r}")
+
+    # Decay + prune agent memories for all tenants
+    try:
+        from src.agent.memory import decay_memories, prune_memories
+
+        conn2 = get_conn()
+        tenant_rows = conn2.execute("SELECT id FROM platform.tenant").fetchall()
+        for (tid,) in tenant_rows:
+            decay_memories(str(tid))
+            prune_memories(str(tid))
+    except Exception as exc:
+        print(f"[db.init] Memory decay/prune warning: {exc!r}")
+
     print(f"[db.init] Bootstrap complete ({len(statements)} statements)")
 
 
