@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Entity, type EntityField, type PreviewResult, type EntityUpdate, type FieldUpdate } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
+import { useToast } from '../lib/toast'
 
 // ── Layer config ──────────────────────────────────────────────────────────────
 
@@ -261,6 +262,7 @@ function FieldTable({
   canAdmin: boolean
 }) {
   const qc = useQueryClient()
+  const { confirm } = useToast()
   const [editField, setEditField] = useState<EntityField | null>(null)
 
   const deleteMut = useMutation({
@@ -313,8 +315,9 @@ function FieldTable({
                       </button>
                       {canAdmin && (
                         <button
-                          onClick={() => {
-                            if (!confirm(`Delete field "${f.name}"?`)) return
+                          onClick={async () => {
+                            const ok = await confirm(`Delete field "${f.name}"?`)
+                            if (!ok) return
                             deleteMut.mutate(f.id)
                           }}
                           disabled={deleteMut.isPending}

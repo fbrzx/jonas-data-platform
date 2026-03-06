@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import type { TenantUser, InviteResponse } from '../lib/api'
+import { useToast } from '../lib/toast'
 
 const ROLES = ['admin', 'analyst', 'viewer'] as const
 
@@ -131,6 +132,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
 export default function TenantUsersPage() {
   const qc = useQueryClient()
+  const { confirm } = useToast()
   const [showModal, setShowModal] = useState(false)
   const [editingRole, setEditingRole] = useState<string | null>(null)
 
@@ -256,10 +258,9 @@ export default function TenantUsersPage() {
                     </td>
                     <td className="px-5 py-3 text-right">
                       <button
-                        onClick={() => {
-                          if (confirm(`Revoke access for ${u.email}?`)) {
-                            revokeUser.mutate(u.id)
-                          }
+                        onClick={async () => {
+                          const ok = await confirm(`Revoke access for ${u.email}?`)
+                          if (ok) revokeUser.mutate(u.id)
                         }}
                         className="font-mono text-[9px] tracking-[0.06em] uppercase text-j-dim hover:text-j-red transition-colors"
                       >

@@ -273,7 +273,17 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
 
     try {
       for await (const event of api.agent.streamChat(next)) {
-        if (event.type === 'delta' && event.text) {
+        if (event.type === 'tool') {
+          // Insert a paragraph break before continuation text after a tool call
+          if (streamedContent && !streamedContent.endsWith('\n')) {
+            streamedContent += '\n\n'
+            setMessages(prev => {
+              const updated = [...prev]
+              updated[updated.length - 1] = { role: 'assistant', content: streamedContent }
+              return updated
+            })
+          }
+        } else if (event.type === 'delta' && event.text) {
           streamedContent += event.text
           if (!hasStartedText) {
             hasStartedText = true

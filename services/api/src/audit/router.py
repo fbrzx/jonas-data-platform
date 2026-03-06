@@ -80,6 +80,9 @@ async def list_jobs(
         [tenant_id, tenant_id, page_size, offset],
     ).fetchall()
 
+    cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+    jobs = [dict(zip(cols, r)) for r in rows]
+
     count_row = conn.execute(
         """
         SELECT COUNT(*) FROM (
@@ -94,10 +97,6 @@ async def list_jobs(
         """,
         [tenant_id, tenant_id],
     ).fetchone()
-
-    cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
-    jobs = [dict(zip(cols, r)) for r in rows]
-    # Re-fetch description after count query
     total = count_row[0] if count_row else 0
 
     return {"jobs": jobs, "total": total, "page": page, "page_size": page_size}

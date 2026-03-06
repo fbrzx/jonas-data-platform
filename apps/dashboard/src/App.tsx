@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { ToastProvider } from './lib/toast'
 import CataloguePage from './pages/CataloguePage'
 import ConnectorsPage from './pages/ConnectorsPage'
 import TransformsPage from './pages/TransformsPage'
@@ -133,6 +134,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <ToastProvider>
       <TokenWatcher />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -166,6 +168,7 @@ export default function App() {
           }
         />
       </Routes>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

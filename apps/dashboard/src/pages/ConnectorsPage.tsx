@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { api, type Integration, type IntegrationCreate, type IntegrationUpdate, type IntegrationRun } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
+import { useToast } from '../lib/toast'
 
 // ── Cron helpers ───────────────────────────────────────────────────────────────
 
@@ -683,6 +684,7 @@ function ConnectorCard({
 export default function ConnectorsPage() {
   const queryClient = useQueryClient()
   const { canWrite } = usePermissions()
+  const { toast, confirm } = useToast()
   const [showCreate, setShowCreate] = useState(false)
   const [uploadTarget, setUploadTarget] = useState<Integration | null>(null)
   const [runsTarget, setRunsTarget] = useState<string | null>(null)
@@ -697,20 +699,27 @@ export default function ConnectorsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.connectors.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connectors'] }),
+    onError: (err: Error) => toast('error', `Delete failed: ${err.message}`),
   })
 
   const triggerMutation = useMutation({
     mutationFn: (id: string) => api.connectors.trigger(id),
     onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['connector-runs', id] })
-      alert(`Pull complete — ${data.rows_landed}/${data.rows_received} rows landed into ${data.target_table}` +
-        (data.errors.length ? `\n⚠ ${data.errors.slice(0, 2).join('; ')}` : ''))
+      queryClient.invalidateQueries({ queryKey: ['audit-jobs'] })
+      const msg = `Pull complete — ${data.rows_landed} / ${data.rows_received} rows landed into ${data.target_table}`
+      if (data.errors.length) {
+        toast('info', msg + ` · ${data.errors.length} error(s)`)
+      } else {
+        toast('success', msg)
+      }
     },
-    onError: (err: Error) => alert(`Pull failed: ${err.message}`),
+    onError: (err: Error) => toast('error', `Pull failed: ${err.message}`),
   })
 
-  function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete connector "${name}"? This cannot be undone.`)) return
+  async function handleDelete(id: string, name: string) {
+    const ok = await confirm(`Delete connector "${name}"? This cannot be undone.`)
+    if (!ok) return
     deleteMutation.mutate(id)
   }
 

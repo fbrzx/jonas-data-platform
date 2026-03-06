@@ -3,8 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import type { TenantConfig } from '../lib/api'
 
-const LLM_PROVIDERS = ['ollama', 'openai', 'google', 'claude']
-
 export default function TenantConfigPage() {
   const qc = useQueryClient()
   const { data, isLoading, error } = useQuery({
@@ -67,43 +65,6 @@ export default function TenantConfigPage() {
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
-          {/* LLM Settings */}
-          <section className="bg-j-surface border border-j-border rounded-lg overflow-hidden">
-            <div className="px-5 py-3 border-b border-j-border">
-              <h2 className="font-mono text-[11px] font-semibold text-j-bright tracking-[0.1em] uppercase">
-                LLM Provider
-              </h2>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-              <div>
-                <label className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim block mb-1.5">
-                  Provider
-                </label>
-                <select
-                  value={cfg.llm_provider}
-                  onChange={e => field('llm_provider')(e.target.value)}
-                  className="w-full bg-j-bg border border-j-border rounded px-3 py-2 font-mono text-xs text-j-bright focus:outline-none focus:border-j-accent"
-                >
-                  {LLM_PROVIDERS.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim block mb-1.5">
-                  Model
-                </label>
-                <input
-                  type="text"
-                  value={cfg.llm_model}
-                  onChange={e => field('llm_model')(e.target.value)}
-                  className="w-full bg-j-bg border border-j-border rounded px-3 py-2 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
-                  placeholder="e.g. llama3.2, gpt-4o, gemini-1.5-pro"
-                />
-              </div>
-            </div>
-          </section>
-
           {/* Privacy */}
           <section className="bg-j-surface border border-j-border rounded-lg overflow-hidden">
             <div className="px-5 py-3 border-b border-j-border">
