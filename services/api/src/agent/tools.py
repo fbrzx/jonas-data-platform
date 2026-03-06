@@ -323,8 +323,9 @@ TOOLS: list[dict[str, Any]] = [
                 "config": {
                     "type": "object",
                     "description": (
-                        "Connector-specific config "
-                        '(e.g. {"source_url": "...", "auth_header": "x-api-key"})'
+                        "Connector-specific config. For api_pull: "
+                        '{"url": "https://api.example.com/data", '
+                        '"headers": {"Authorization": "Bearer <token>"}}'
                     ),
                 },
                 "tags": {

@@ -579,8 +579,23 @@ function ConnectorCard({
   const isBatch = connector.connector_type === 'batch_csv' || connector.connector_type === 'batch_json'
   const isApiPull = connector.connector_type === 'api_pull'
 
+  const parsedConfig: Record<string, unknown> = (() => {
+    try { return JSON.parse(connector.config ?? '{}') } catch { return {} }
+  })()
+  // Support both new (url/headers) and legacy (source_url/auth_header) config keys
+  const configUrl = ((parsedConfig.url ?? parsedConfig.source_url) as string | undefined) ?? ''
+  const configAuth =
+    ((parsedConfig.headers as Record<string, string> | undefined)?.Authorization) ??
+    (parsedConfig.auth_header as string | undefined) ?? ''
+
   function handleCopy() {
     copyText(webhookUrl(connector.id))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  function handleCopyUrl() {
+    copyText(configUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -617,6 +632,41 @@ function ConnectorCard({
           >
             {copied ? '✓ copied' : '⎘ copy'}
           </button>
+        </div>
+      )}
+
+      {/* API Pull config strip */}
+      {isApiPull && (
+        <div className="px-4 py-2 border-b border-j-border bg-j-surface2 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-j-dim shrink-0">URL</span>
+            {configUrl ? (
+              <>
+                <span className="font-mono text-[10px] text-j-text truncate flex-1 select-all" title={configUrl}>
+                  {configUrl}
+                </span>
+                <button
+                  onClick={handleCopyUrl}
+                  className="font-mono text-[10px] shrink-0 text-j-dim hover:text-j-accent transition-colors"
+                  title="Copy URL"
+                >
+                  {copied ? '✓' : '⎘'}
+                </button>
+              </>
+            ) : (
+              <span className="font-mono text-[10px] text-j-border italic">not configured</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-j-dim shrink-0">Auth</span>
+            {configAuth ? (
+              <span className="font-mono text-[10px] text-j-green">
+                {configAuth.slice(0, 14)}{configAuth.length > 14 ? '●●●●' : ''}
+              </span>
+            ) : (
+              <span className="font-mono text-[10px] text-j-border italic">none</span>
+            )}
+          </div>
         </div>
       )}
 

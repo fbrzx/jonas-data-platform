@@ -161,11 +161,14 @@ async def trigger_api_pull(integration_id: str, request: Request) -> dict[str, A
     config: dict = (
         _json.loads(raw_config) if isinstance(raw_config, str) else raw_config
     )
-    url: str = config.get("url", "").strip()
+    # Support legacy keys written by earlier agent versions (source_url / auth_header)
+    url: str = (config.get("url") or config.get("source_url") or "").strip()
     if not url:
         raise HTTPException(status_code=422, detail="Integration config.url is not set")
 
-    headers: dict[str, str] = config.get("headers", {})
+    headers: dict[str, str] = config.get("headers") or {}
+    if not headers and config.get("auth_header"):
+        headers = {"Authorization": str(config["auth_header"])}
     entity_id = integration.get("target_entity_id")
     if entity_id:
         from src.catalogue.service import get_entity
