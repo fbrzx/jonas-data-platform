@@ -181,18 +181,44 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         [run_id, transform_id, started_at],
     )
 
+    # Pre-validate: EXPLAIN catches column/table errors before touching data
+    sql = str(transform["transform_sql"])
+    explain_sql = sql
+    create_match = re.search(r"(?i)\bAS\s+(SELECT\b.*)", sql, re.DOTALL)
+    if create_match:
+        explain_sql = create_match.group(1)
     try:
-        conn.execute(transform["transform_sql"])
-        # CTAS / DDL statements don't return rows — query the target table for count
-        try:
-            row = conn.execute(
-                f"SELECT COUNT(*) FROM {target_table}"  # noqa: S608
-            ).fetchone()
-            rows_affected = int(row[0]) if row else 0
-        except Exception:
-            rows_affected = 0
+        conn.execute(f"EXPLAIN {explain_sql}")
     except Exception as exc:
-        errors.append(str(exc))
+        err = str(exc)
+        hint = ""
+        col_match = re.search(
+            r'does not have a column named "([^"]+)"', err, re.IGNORECASE
+        )
+        if col_match:
+            col = col_match.group(1)
+            hint = (
+                f' Hint: "{col}" is not a physical column. '
+                f"If this table uses webhook/api_pull format the field lives inside the "
+                f"`payload` JSON column — use json_extract_string(payload, '$.{col}') "
+                f"instead. Call describe_entity to see physical_columns and payload_keys, "
+                f"then call update_transform with the corrected SQL before re-approving."
+            )
+        errors.append(f"SQL validation error: {err}.{hint}")
+
+    if not errors:
+        try:
+            conn.execute(sql)
+            # CTAS / DDL statements don't return rows — query the target table for count
+            try:
+                row = conn.execute(
+                    f"SELECT COUNT(*) FROM {target_table}"  # noqa: S608
+                ).fetchone()
+                rows_affected = int(row[0]) if row else 0
+            except Exception:
+                rows_affected = 0
+        except Exception as exc:
+            errors.append(str(exc))
 
     duration_ms = (time.monotonic() - start) * 1000
     completed_at = _now()

@@ -151,12 +151,36 @@ The system prompt shows "PHYSICAL STORAGE: webhook/api_pull format" or "Physical
 entity. **Always read this before writing SQL.** Never reference a column name that isn't in the
 physical columns list. For webhook tables, always use json_extract for field access.
 
-## SQL rules
-- Before writing any transform SQL, check the physical columns shown for each entity above.
-- If a table shows webhook format, use `json_extract(payload, '$.colname')`
-  — never bare column names.
-- Validate joins: only join on columns that physically exist on both sides.
-- Run `run_sql` with `SELECT * FROM table LIMIT 1` to verify schema when uncertain.
+## SQL rules — follow every time before writing a transform or query
+1. **Call `describe_entity` for every source table** before writing SQL.
+   Read `storage_format`, `physical_columns`, and `payload_keys` in the response.
+2. **Webhook/api_pull tables** (`storage_format: "webhook"`):
+   - Fields live inside `payload` JSON — NEVER use bare field names as columns.
+   - Strings: `json_extract_string(payload, '$.field_name')`
+   - Numbers: `CAST(json_extract(payload, '$.field_name') AS DOUBLE)`
+   - Timestamps: `CAST(json_extract(payload, '$.field_name') AS TIMESTAMP)`
+   - Joins: `json_extract_string(a.payload, '$.id') = b.some_column`
+3. **CSV/flat tables** (`storage_format: "csv"`):
+   - All columns in `physical_columns` are directly usable.
+   - All values are VARCHAR — CAST for arithmetic or date comparisons.
+4. **Cross-format joins** are common and require mixing both patterns:
+   ```sql
+   SELECT
+     json_extract_string(o.payload, '$.order_id') AS order_id,
+     c.contact_id
+   FROM bronze.orders o  -- webhook format
+   JOIN bronze.contacts c  -- csv format
+     ON json_extract_string(o.payload, '$.customer_email') = c.email
+   ```
+5. The `draft_transform` tool validates SQL with EXPLAIN before saving.
+   If it returns an error, fix the SQL and retry — do not save broken transforms.
+6. **After debugging SQL interactively with `run_sql`**: the working SQL exists only in
+   the conversation, not in the stored transform. You MUST call `update_transform` with
+   the verified SQL before telling the user the transform is ready for approval.
+   Skipping this means the stored transform still has the old broken SQL and will fail on execution.
+7. **When a transform execution fails**: call `describe_entity` on each source table,
+   check `physical_columns` and `payload_keys`, fix the SQL, call `update_transform`,
+   then ask the admin to re-approve. Do not ask the admin to retry the same SQL.
 
 ## Relationship rules (read carefully)
 - The system prompt always includes the current state of entities, integrations, and transforms.
@@ -239,6 +263,79 @@ def _run_tool(
         if not entity:
             return json.dumps({"error": "Entity not found"})
         entity["fields"] = get_entity_fields(entity["id"])
+
+        # Add physical DuckDB schema — this is the source of truth for SQL
+        layer = entity.get("layer", "bronze")
+        name = entity.get("name", "")
+        try:
+            phys_rows = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position",
+                [layer, name],
+            ).fetchall()
+            phys_cols = [r[0] for r in phys_rows]
+            # Detect storage format from physical column signatures:
+            # - webhook: created by land_webhook/land_api_pull/land_batch_json
+            #   has exactly: id, tenant_id, ingested_at, source, payload, metadata
+            # - csv: created by land_batch_csv
+            #   has: _id, _tenant_id, _ingested_at, ...flat VARCHAR cols...
+            # - flat: silver/gold table created by a transform (typed structured cols)
+            _WEBHOOK_SIGNATURE = {
+                "id",
+                "tenant_id",
+                "ingested_at",
+                "source",
+                "payload",
+                "metadata",
+            }
+            _CSV_SIGNATURE = {"_id", "_tenant_id", "_ingested_at"}
+            phys_set = set(phys_cols)
+            is_webhook = _WEBHOOK_SIGNATURE.issubset(phys_set)
+            is_csv = _CSV_SIGNATURE.issubset(phys_set) and "payload" not in phys_set
+
+            entity["physical_columns"] = phys_cols
+            if is_webhook:
+                entity["storage_format"] = "webhook"
+                entity["sql_hint"] = (
+                    "WEBHOOK FORMAT: logical fields are inside the `payload` JSON column. "
+                    "Use json_extract_string(payload, '$.field') for strings, "
+                    "CAST(json_extract(payload, '$.field') AS DOUBLE/TIMESTAMP/etc) for typed values. "
+                    "Never reference catalogue field names as direct SQL columns — they do not exist."
+                )
+                # Surface the actual JSON keys inside payload from a real row
+                try:
+                    row = conn.execute(
+                        f"SELECT payload FROM {layer}.{name} LIMIT 1"  # noqa: S608
+                    ).fetchone()
+                    if row and row[0]:
+                        sample = (
+                            json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                        )
+                        if isinstance(sample, dict):
+                            entity["payload_keys"] = list(sample.keys())[:20]
+                        elif (
+                            isinstance(sample, list)
+                            and sample
+                            and isinstance(sample[0], dict)
+                        ):
+                            entity["payload_keys"] = list(sample[0].keys())[:20]
+                except Exception:
+                    pass
+            elif is_csv:
+                entity["storage_format"] = "csv"
+                entity["sql_hint"] = (
+                    "CSV FORMAT: use physical_columns directly (strip the leading _ from _id/_tenant_id/_ingested_at). "
+                    "All user data columns are VARCHAR — CAST as needed for arithmetic or timestamp comparisons."
+                )
+            else:
+                entity["storage_format"] = "flat"
+                entity["sql_hint"] = (
+                    "FLAT FORMAT: typed structured table (created by a transform). "
+                    "Use physical_columns directly — columns already have correct types, no JSON extraction needed."
+                )
+        except Exception:
+            pass
+
         return json.dumps(entity, default=str)
 
     # ── infer_schema ─────────────────────────────────────────────────────────
@@ -265,9 +362,14 @@ def _run_tool(
     if tool_name == "register_entity":
         from src.catalogue.service import create_entity, create_fields_bulk
 
+        if not tool_input.get("name"):
+            return json.dumps({"error": "register_entity requires 'name'"})
+        layer = tool_input.get("layer", "bronze")
+        if layer not in ("bronze", "silver", "gold"):
+            layer = "bronze"
         entity_data = {
             "name": tool_input["name"],
-            "layer": tool_input["layer"],
+            "layer": layer,
             "description": tool_input.get("description", ""),
             "tags": [tool_input["namespace"]] if tool_input.get("namespace") else [],
         }
@@ -472,6 +574,30 @@ def _run_tool(
     # ── draft_transform ──────────────────────────────────────────────────────
     if tool_name == "draft_transform":
         from src.transforms.service import create_transform
+
+        sql = (tool_input.get("transform_sql") or "").strip()
+        if sql:
+            # Dry-run validation: catch syntax and missing column errors before saving.
+            # Wrap in a subquery so EXPLAIN works for both SELECT and CREATE TABLE AS SELECT.
+            explain_sql = sql
+            if re.match(r"(?i)\s*CREATE\s+", sql):
+                # Strip the CREATE TABLE ... AS prefix to get the SELECT for EXPLAIN
+                select_match = re.search(r"(?i)\bAS\s+(SELECT\b.*)", sql, re.DOTALL)
+                explain_sql = select_match.group(1) if select_match else sql
+            try:
+                conn.execute(f"EXPLAIN {explain_sql}")
+            except Exception as exc:
+                return json.dumps(
+                    {
+                        "error": (
+                            f"SQL validation failed before saving: {exc}. "
+                            "Check column names match the physical columns for each table. "
+                            "For webhook/api_pull bronze tables use json_extract_string(payload, '$.field') "
+                            "— not bare field names. Call describe_entity to see physical_columns and payload_keys."
+                        ),
+                        "sql": sql,
+                    }
+                )
 
         result = create_transform(tool_input, tenant_id, created_by=created_by)
         return json.dumps(result, default=str)

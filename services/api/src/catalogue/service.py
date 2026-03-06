@@ -306,20 +306,66 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
                 phys_cols = []
 
             if phys_cols:
-                is_webhook_format = (
-                    "payload" in phys_cols and "ingested_at" in phys_cols
+                _WEBHOOK_SIG = {
+                    "id",
+                    "tenant_id",
+                    "ingested_at",
+                    "source",
+                    "payload",
+                    "metadata",
+                }
+                _CSV_SIG = {"_id", "_tenant_id", "_ingested_at"}
+                phys_set = set(phys_cols)
+                is_webhook_format = _WEBHOOK_SIG.issubset(phys_set)
+                is_csv_format = (
+                    _CSV_SIG.issubset(phys_set) and "payload" not in phys_set
                 )
+
                 if is_webhook_format:
                     lines.append(
-                        "  PHYSICAL STORAGE: webhook/api_pull format — "
-                        "data is in the `payload` JSON column. "
-                        "Use json_extract(payload, '$.field') to access fields. "
-                        "Do NOT reference catalogue field names as direct columns."
+                        "  STORAGE: webhook — fields are inside `payload` JSON column. "
+                        "Use json_extract_string(payload, '$.field') for strings, "
+                        "CAST(json_extract(payload, '$.field') AS type) for typed values. "
+                        "NEVER use bare field names as SQL columns."
                     )
                     lines.append(f"  Physical columns: {', '.join(phys_cols)}")
+                    # Surface the actual payload keys from a sample row
+                    try:
+                        sample_row = conn.execute(
+                            f"SELECT payload FROM {layer}.{name} LIMIT 1"  # noqa: S608
+                        ).fetchone()
+                        if sample_row and sample_row[0]:
+                            sample_payload = (
+                                json.loads(sample_row[0])
+                                if isinstance(sample_row[0], str)
+                                else sample_row[0]
+                            )
+                            if isinstance(sample_payload, dict):
+                                keys = list(sample_payload.keys())[:15]
+                                lines.append(
+                                    f"  Payload keys: {', '.join(keys)}"
+                                    f"  — example: json_extract_string(payload, '$.{keys[0]}')"
+                                )
+                            elif (
+                                isinstance(sample_payload, list)
+                                and sample_payload
+                                and isinstance(sample_payload[0], dict)
+                            ):
+                                keys = list(sample_payload[0].keys())[:15]
+                                lines.append(
+                                    f"  Payload keys (array/first element): {', '.join(keys)}"
+                                )
+                    except Exception:
+                        pass
+                elif is_csv_format:
+                    lines.append(
+                        f"  STORAGE: csv — use these columns directly (all VARCHAR, CAST as needed): "
+                        f"{', '.join(phys_cols)}"
+                    )
                 else:
                     lines.append(
-                        f"  Physical columns (use these in SQL): {', '.join(phys_cols)}"
+                        f"  STORAGE: flat — typed structured table (created by transform). "
+                        f"Use these columns directly with their native types: {', '.join(phys_cols)}"
                     )
             else:
                 lines.append("  (table not yet created in DuckDB — no data ingested)")
