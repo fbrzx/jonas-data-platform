@@ -171,7 +171,7 @@ def recall_memories(
         )
         new_count = int(m.get("use_count") or 0) + 1
         conn.execute(
-            "UPDATE audit.agent_memory SET relevance_score = ?, last_used_at = ?, use_count = ? WHERE id = ?",
+            "UPDATE audit.agent_memory SET relevance_score = ?, last_used_at = ?, use_count = ? WHERE id = ?",  # noqa: E501
             [new_score, now, new_count, m["id"]],
         )
 

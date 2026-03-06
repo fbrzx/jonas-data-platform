@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -120,7 +119,7 @@ async def accept_invite(body: AcceptInviteRequest) -> dict[str, str]:
     now = datetime.now(UTC)
 
     row = conn.execute(
-        "SELECT id, tenant_id, email, role, expires_at, used_at FROM platform.invite WHERE token = ?",
+        "SELECT id, tenant_id, email, role, expires_at, used_at FROM platform.invite WHERE token = ?",  # noqa: E501
         [body.token],
     ).fetchone()
     if not row:
@@ -163,7 +162,7 @@ async def accept_invite(body: AcceptInviteRequest) -> dict[str, str]:
 
     membership_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
     conn.execute(
-        "INSERT INTO platform.tenant_membership (id, tenant_id, user_id, role, granted_at, granted_by) "
+        "INSERT INTO platform.tenant_membership (id, tenant_id, user_id, role, granted_at, granted_by) "  # noqa: E501
         "VALUES (?, ?, ?, ?, ?, ?)",
         [membership_id, tenant_id, user_id, role, now_str, "invite"],
     )

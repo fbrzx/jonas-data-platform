@@ -3,7 +3,8 @@
 import json
 from typing import Any
 
-from . import catalogue, connectors, memory, query, transforms as transforms_handler
+from . import catalogue, connectors, memory, query
+from . import transforms as transforms_handler
 
 _MODULES = [catalogue, query, connectors, transforms_handler, memory]
 

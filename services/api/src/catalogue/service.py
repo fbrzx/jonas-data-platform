@@ -278,7 +278,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
 
 def _build_catalogue_context_legacy(
     tenant_id: str, role: str
-) -> str:  # noqa: dead-code
+) -> str:
     """Original implementation — kept temporarily, not called."""
     entities = get_accessible_entities(tenant_id, role)
 
@@ -367,7 +367,7 @@ def _build_catalogue_context_legacy(
                                         sub_keys = list(v[0].keys())[:8]
                                         lines.append(
                                             f"  Array field '{k}': unnest with "
-                                            f"CROSS JOIN UNNEST(json_extract(payload, '$.{k}')::JSON[]) AS t(elem)"
+                                            f"CROSS JOIN UNNEST(json_extract(payload, '$.{k}')::JSON[]) AS t(elem)"  # noqa: E501
                                             f" — sub-keys: {', '.join(sub_keys)}"
                                         )
                             elif (
@@ -383,13 +383,13 @@ def _build_catalogue_context_legacy(
                         pass
                 elif is_csv_format:
                     lines.append(
-                        f"  STORAGE: csv — use these columns directly (all VARCHAR, CAST as needed): "
+                        f"  STORAGE: csv — use these columns directly (all VARCHAR, CAST as needed): "  # noqa: E501
                         f"{', '.join(phys_cols)}"
                     )
                 else:
                     lines.append(
                         f"  STORAGE: flat — typed structured table (created by transform). "
-                        f"Use these columns directly with their native types: {', '.join(phys_cols)}"
+                        f"Use these columns directly with their native types: {', '.join(phys_cols)}"  # noqa: E501
                     )
             else:
                 lines.append("  (table not yet created in DuckDB — no data ingested)")

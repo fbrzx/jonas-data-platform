@@ -318,8 +318,8 @@ TRANSFORMS = [
             "        json_extract_string(payload, '$.order_id') AS order_id,\n"
             "        json_extract_string(payload, '$.customer_id') AS customer_id,\n"
             "        json_extract_string(payload, '$.status') AS status,\n"
-            "        TRY_CAST(json_extract_string(payload, '$.created_at') AS TIMESTAMP) AS created_at,\n"
-            "        COALESCE(NULLIF(json_extract_string(payload, '$.shipping_country'), ''), 'UNKNOWN') AS shipping_country,\n"
+            "        TRY_CAST(json_extract_string(payload, '$.created_at') AS TIMESTAMP) AS created_at,\n"  # noqa: E501
+            "        COALESCE(NULLIF(json_extract_string(payload, '$.shipping_country'), ''), 'UNKNOWN') AS shipping_country,\n"  # noqa: E501
             "        TRY_CAST(json_extract(payload, '$.total') AS DOUBLE) AS total_usd\n"
             "    FROM bronze.orders\n"
             ")\n"

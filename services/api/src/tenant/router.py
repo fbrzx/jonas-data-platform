@@ -146,7 +146,7 @@ async def invite_user(request: Request, body: InviteCreate) -> dict[str, Any]:
     invite_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
 
     conn.execute(
-        "INSERT INTO platform.invite (id, tenant_id, email, role, token, expires_at, created_by, created_at) "
+        "INSERT INTO platform.invite (id, tenant_id, email, role, token, expires_at, created_by, created_at) "  # noqa: E501
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
             invite_id,
@@ -222,13 +222,13 @@ async def create_user(request: Request, body: UserCreate) -> dict[str, Any]:
 
     user_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
     conn.execute(
-        "INSERT INTO platform.user_account (id, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO platform.user_account (id, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",  # noqa: E501
         [user_id, body.email, body.display_name, pw_hash, now],
     )
 
     membership_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
     conn.execute(
-        "INSERT INTO platform.tenant_membership (id, tenant_id, user_id, role, granted_at, granted_by) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO platform.tenant_membership (id, tenant_id, user_id, role, granted_at, granted_by) VALUES (?, ?, ?, ?, ?, ?)",  # noqa: E501
         [membership_id, tenant_id, user_id, body.role, now, admin_id],
     )
 
@@ -268,7 +268,7 @@ async def change_role(
 
     conn = get_conn()
     row = conn.execute(
-        "SELECT id FROM platform.tenant_membership WHERE tenant_id = ? AND user_id = ? AND revoked_at IS NULL",
+        "SELECT id FROM platform.tenant_membership WHERE tenant_id = ? AND user_id = ? AND revoked_at IS NULL",  # noqa: E501
         [tenant_id, user_id],
     ).fetchone()
     if not row:
@@ -300,7 +300,7 @@ async def revoke_user(request: Request, user_id: str) -> None:
 
     conn = get_conn()
     row = conn.execute(
-        "SELECT id FROM platform.tenant_membership WHERE tenant_id = ? AND user_id = ? AND revoked_at IS NULL",
+        "SELECT id FROM platform.tenant_membership WHERE tenant_id = ? AND user_id = ? AND revoked_at IS NULL",  # noqa: E501
         [tenant_id, user_id],
     ).fetchone()
     if not row:

@@ -107,7 +107,7 @@ def handle(
             if err is not None:
                 return json.dumps(
                     {
-                        "error": f"SQL validation failed before saving: {err}.{_sql_error_hint(err)}",
+                        "error": f"SQL validation failed before saving: {err}.{_sql_error_hint(err)}",  # noqa: E501
                         "sql": sql,
                     }
                 )
@@ -133,7 +133,7 @@ def handle(
             if err is not None:
                 return json.dumps(
                     {
-                        "error": f"SQL validation failed — transform not updated: {err}.{_sql_error_hint(err)}",
+                        "error": f"SQL validation failed — transform not updated: {err}.{_sql_error_hint(err)}",  # noqa: E501
                         "sql": new_sql,
                     }
                 )

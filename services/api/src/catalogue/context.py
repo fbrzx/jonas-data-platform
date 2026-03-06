@@ -90,7 +90,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
                                         sub_keys = list(v[0].keys())[:8]
                                         lines.append(
                                             f"  Array field '{k}': unnest with "
-                                            f"CROSS JOIN UNNEST(json_extract(payload, '$.{k}')::JSON[]) AS t(elem)"
+                                            f"CROSS JOIN UNNEST(json_extract(payload, '$.{k}')::JSON[]) AS t(elem)"  # noqa: E501
                                             f" — sub-keys: {', '.join(sub_keys)}"
                                         )
                             elif (
@@ -106,13 +106,13 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
                         pass
                 elif is_csv:
                     lines.append(
-                        f"  STORAGE: csv — use these columns directly (all VARCHAR, CAST as needed): "
+                        f"  STORAGE: csv — use these columns directly (all VARCHAR, CAST as needed): "  # noqa: E501
                         f"{', '.join(phys_cols)}"
                     )
                 else:
                     lines.append(
                         f"  STORAGE: flat — typed structured table (created by transform). "
-                        f"Use these columns directly with their native types: {', '.join(phys_cols)}"
+                        f"Use these columns directly with their native types: {', '.join(phys_cols)}"  # noqa: E501
                     )
             else:
                 lines.append("  (table not yet created in DuckDB — no data ingested)")
@@ -158,7 +158,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
     # ── Transforms ───────────────────────────────────────────────────────────
     try:
         t_rows = conn.execute(
-            "SELECT id, name, description, source_layer, target_layer, status, transform_sql, trigger_mode "
+            "SELECT id, name, description, source_layer, target_layer, status, transform_sql, trigger_mode "  # noqa: E501
             "FROM transforms.transform WHERE tenant_id = ?",  # noqa: E501
             [tenant_id],
         ).fetchall()

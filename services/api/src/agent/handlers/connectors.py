@@ -1,4 +1,4 @@
-"""Connector tool handlers: list_connectors, get_connector_runs, discover_api, ingest_webhook, create_connector."""
+"""Connector tool handlers: list_connectors, get_connector_runs, discover_api, ingest_webhook, create_connector."""  # noqa: E501
 
 import json
 from typing import Any
@@ -161,7 +161,7 @@ def handle(
             if integration.get("connector_type") != "webhook":
                 return json.dumps(
                     {
-                        "error": f"Connector '{integration['name']}' has connector_type '{integration['connector_type']}', not 'webhook'."
+                        "error": f"Connector '{integration['name']}' has connector_type '{integration['connector_type']}', not 'webhook'."  # noqa: E501
                     }
                 )
             entity_id = integration.get("target_entity_id")

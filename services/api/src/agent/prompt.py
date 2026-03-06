@@ -36,7 +36,7 @@ def cap_tool_result(result: str) -> str:
     truncated = result[: _MAX_TOOL_RESULT_CHARS - 100]
     return (
         truncated
-        + f'... [truncated — total {len(result)} chars, showing first {_MAX_TOOL_RESULT_CHARS - 100}]"'
+        + f'... [truncated — total {len(result)} chars, showing first {_MAX_TOOL_RESULT_CHARS - 100}]"'  # noqa: E501
     )
 
 
@@ -122,7 +122,7 @@ If cleaning is needed, offer to `draft_transform` to promote to silver/gold.
 - **After `draft_transform` succeeds, always register the output table as a catalogue entity.**
   Call `register_entity` with the target layer (`silver` or `gold`), the output table name, and
   the inferred fields from the CREATE TABLE column list. Do this automatically — do not wait for
-  the user to ask. Confirm to the user: "I've also registered `silver.orders` as a catalogue entity."
+  the user to ask. Confirm: "I've also registered `silver.orders` as a catalogue entity."
 
 **Mandatory two-statement upsert pattern:**
 ```sql
@@ -158,14 +158,15 @@ Transforms can run automatically when source data changes:
   (webhook, batch upload, or api_pull landing), and after upstream transforms complete (cascading).
   Requires admin approval and a non-empty `watch_entities` list (entity UUIDs).
   Cascade depth is capped at 5 to prevent loops. Debounced to at most once per 30 seconds.
-- When drafting an on_change transform: set `trigger_mode="on_change"` and `watch_entities=[<source_entity_id>]`.
+- When drafting an on_change transform: set `trigger_mode="on_change"` and
+  `watch_entities=[<source_entity_id>]`.
   Always confirm the trigger mode and watched entities with the user before creating.
 
 ## Memory
 - After solving a complex problem, discovering a data quality issue, or learning a user preference,
-  call `save_memory` with a clear summary and relevant detail (SQL pattern, entity name, column quirk).
+  call `save_memory` with a clear summary and relevant detail (SQL pattern, entity name, quirk).
 - Do NOT save trivial, obvious, or session-specific information.
-- Use `recall_memories` when a question seems related to past work but nothing is in the system prompt.
+- Use `recall_memories` when a question seems related to past work but context is missing.
 - Use `forget_memory` when a user says something you remembered is wrong or outdated.
 - Auto-injected memories (below) are already ranked by relevance — trust them.
 
@@ -198,7 +199,7 @@ physical columns list. For webhook tables, always use json_extract for field acc
 
 ## SQL rules — follow every time before writing a transform or query
 1. **Call `describe_entity` for every source table** before writing SQL.
-   Read `storage_format`, `physical_columns`, `payload_keys`, and `payload_array_fields` in the response.
+   Read `storage_format`, `physical_columns`, `payload_keys`, and `payload_array_fields`.
 2. **Webhook/api_pull tables** (`storage_format: "webhook"`):
    - Fields live inside `payload` JSON — NEVER use bare field names as columns.
    - Strings: `json_extract_string(payload, '$.field_name')`

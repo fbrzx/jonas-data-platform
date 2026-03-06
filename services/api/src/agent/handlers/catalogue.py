@@ -1,4 +1,4 @@
-"""Catalogue tool handlers: list_entities, describe_entity, infer_schema, register_entity, preview_entity."""
+"""Catalogue tool handlers: list_entities, describe_entity, infer_schema, register_entity, preview_entity."""  # noqa: E501
 
 import json
 from typing import Any
@@ -104,8 +104,8 @@ def handle(
                 entity["sql_hint"] = (
                     "WEBHOOK FORMAT: logical fields are inside the `payload` JSON column. "
                     "Use json_extract_string(payload, '$.field') for strings, "
-                    "CAST(json_extract(payload, '$.field') AS DOUBLE/TIMESTAMP/etc) for typed values. "
-                    "Never reference catalogue field names as direct SQL columns — they do not exist."
+                    "CAST(json_extract(payload, '$.field') AS DOUBLE/TIMESTAMP/etc) for typed values. "  # noqa: E501
+                    "Never reference catalogue field names as direct SQL columns — they do not exist."  # noqa: E501
                 )
                 try:
                     row = conn.execute(
@@ -125,9 +125,9 @@ def handle(
                                 entity["payload_array_fields"] = array_fields
                                 entity["unnest_hint"] = (
                                     "DuckDB JSON array unnesting — required syntax: "
-                                    "CROSS JOIN UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem). "
-                                    "Access sub-fields with json_extract_string(t.elem, '$.sub_key'). "
-                                    "NOT supported: CROSS JOIN LATERAL, json_array_elements, json_each."
+                                    "CROSS JOIN UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem). "  # noqa: E501
+                                    "Access sub-fields with json_extract_string(t.elem, '$.sub_key'). "  # noqa: E501
+                                    "NOT supported: CROSS JOIN LATERAL, json_array_elements, json_each."  # noqa: E501
                                 )
                         elif (
                             isinstance(sample, list)
@@ -140,7 +140,7 @@ def handle(
             elif is_csv:
                 entity["storage_format"] = "csv"
                 entity["sql_hint"] = (
-                    "CSV FORMAT: use physical_columns directly (strip the leading _ from _id/_tenant_id/_ingested_at). "
+                    "CSV FORMAT: use physical_columns directly (strip the leading _ from _id/_tenant_id/_ingested_at). "  # noqa: E501
                     "All user data columns are VARCHAR — CAST as needed."
                 )
             else:
@@ -230,7 +230,7 @@ def handle(
         if entity.get("layer") not in allowed_layers:
             return json.dumps(
                 {
-                    "error": f"Access denied: role ({role}) cannot access the {entity['layer']} layer."
+                    "error": f"Access denied: role ({role}) cannot access the {entity['layer']} layer."  # noqa: E501
                 }
             )
 

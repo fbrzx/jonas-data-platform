@@ -1,7 +1,7 @@
 """Smoke test — verifies the FastAPI app starts and /health returns 200."""
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 
@@ -9,8 +9,9 @@ from src.main import app
 @pytest.fixture(autouse=True)
 async def _init_db() -> None:
     """Use an in-memory DuckDB for tests."""
-    from src.db import connection as db
     import duckdb
+
+    from src.db import connection as db
 
     db._conn = duckdb.connect(":memory:")
     yield
