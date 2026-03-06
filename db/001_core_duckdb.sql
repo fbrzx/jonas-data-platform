@@ -12,7 +12,7 @@
 --       platform    — tenant, user_account, tenant_membership
 --       catalogue   — namespace, entity, entity_field
 --       transforms  — transform, transform_run, entity_lineage
---       integrations — integration_template, integration, integration_run
+--       integrations — integration_template, connector, connector_run
 --       permissions — permission_grant
 --       audit       — audit_log
 -- ============================================================
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS platform.user_account (
     id           VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
     email        VARCHAR NOT NULL UNIQUE,
     display_name VARCHAR NOT NULL,
+    password_hash VARCHAR,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT current_timestamp
 );
 
@@ -173,7 +174,7 @@ CREATE TABLE IF NOT EXISTS integrations.integration_template (
     description      VARCHAR
 );
 
-CREATE TABLE IF NOT EXISTS integrations.integration (
+CREATE TABLE IF NOT EXISTS integrations.connector (
     id               VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id        VARCHAR NOT NULL,  -- REFERENCES platform.tenant(id)
     template_id      VARCHAR,           -- REFERENCES integrations.integration_template(id)
@@ -191,6 +192,7 @@ CREATE TABLE IF NOT EXISTS integrations.integration (
     sink_config      JSON    NOT NULL DEFAULT '{}',
     auth_config      JSON    DEFAULT '{}',
     schedule         VARCHAR,
+    cron_schedule    VARCHAR,
     target_entity_id VARCHAR,           -- REFERENCES catalogue.entity(id)
     tags             JSON    DEFAULT '[]',
     created_by       VARCHAR,           -- REFERENCES platform.user_account(id)
@@ -200,9 +202,9 @@ CREATE TABLE IF NOT EXISTS integrations.integration (
     UNIQUE (tenant_id, name)
 );
 
-CREATE TABLE IF NOT EXISTS integrations.integration_run (
+CREATE TABLE IF NOT EXISTS integrations.connector_run (
     id               VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-    integration_id   VARCHAR NOT NULL,  -- REFERENCES integrations.integration(id)
+    integration_id   VARCHAR NOT NULL,  -- REFERENCES integrations.connector(id)
     status           VARCHAR NOT NULL CHECK (status IN ('running','success','partial','failed')),
     started_at       TIMESTAMPTZ NOT NULL DEFAULT current_timestamp,
     completed_at     TIMESTAMPTZ,
@@ -271,8 +273,8 @@ CREATE INDEX IF NOT EXISTS idx_entity_field_entity
 CREATE INDEX IF NOT EXISTS idx_transform_tenant
     ON transforms.transform (tenant_id, status);
 
-CREATE INDEX IF NOT EXISTS idx_integration_tenant
-    ON integrations.integration (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_connector_tenant
+    ON integrations.connector (tenant_id, status);
 
 CREATE INDEX IF NOT EXISTS idx_lineage_source
     ON transforms.entity_lineage (source_entity_id);

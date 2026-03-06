@@ -20,6 +20,7 @@ Before writing any code, read these docs in order:
 - Phase 1 complete: FastAPI service + React dashboard fully built
 - Phase 2 complete: agent core, schema inference, PII masking, NL-to-SQL, lineage view
 - Phase 3 complete: streaming SSE chat, 13 agent tools, full integration + transform CRUD
+- Phase 4 in progress: connectors rename done, discover_api tool done, silver validation done
 
 ## Phase 1 Status (DONE)
 
@@ -42,38 +43,52 @@ Before writing any code, read these docs in order:
 ## Phase 3 Status (DONE)
 
 1. ✅ **Streaming SSE chat**: `stream_chat` in `agent/service.py` — emits `tool`/`delta`/`done` events
-2. ✅ **Agent tools expanded to 13**: added `list_integrations`, `get_integration_runs`, `ingest_webhook`, `create_integration`, `list_transforms`, `update_transform` (on top of original 7)
-3. ✅ **Agent system prompt**: 6-step guided import flow, physical storage format docs (webhook vs batch column layout), integration/transform relationship rules
-4. ✅ **Integration API**: `api_pull` connector type; linked endpoints `/{id}/webhook`, `/{id}/batch`, `/{id}/trigger`, `/{id}/runs`; source table resolved from linked entity name
+2. ✅ **Agent tools expanded to 14**: added `list_connectors`, `get_connector_runs`, `ingest_webhook`, `create_connector`, `discover_api`, `list_transforms`, `update_transform` (on top of original 7)
+3. ✅ **Agent system prompt**: 6-step guided import flow, physical storage format docs (webhook vs batch column layout), connector/transform relationship rules
+4. ✅ **Connector API**: `api_pull` connector type; linked endpoints `/{id}/webhook`, `/{id}/batch`, `/{id}/trigger`, `/{id}/runs`; source table resolved from linked entity name
 5. ✅ **Transform CRUD**: `update_transform` + `delete_transform`; SQL edits reset approved transforms to draft; full `transform_run` lifecycle records with `last_run_at`
 6. ✅ **TransformsPage**: create/edit modal with RBAC-aware form (SQL locked for non-admins on approved transforms); inline execute result
-7. ✅ **IntegrationsPage**: upload for batch integrations, trigger for api_pull, run history display
+7. ✅ **ConnectorsPage**: upload for batch connectors, trigger for api_pull, run history display
 
-## Next Steps (Phase 4) — **current priority**
+## Phase 4 Status (COMPLETE)
 
 > Full plan: [`.claude/docs/phase-4-plan.md`](.claude/docs/phase-4-plan.md)
 
-Planned in this order:
-
-1. **Rename integrations → connectors** — DB migration + all call sites
-2. **API discovery via chat** — `discover_api` agent tool (httpx pull + schema inference) + `jonas-form` inline form card in chat
-3. **Job scheduler** — APScheduler cron pulls; `cron_schedule` column on connectors; cron UI in ConnectorsPage
-4. **Audit page** — chat session persistence; unified jobs/logs/conversations view
-5. **Data pager** — reusable `DataPager` component; paginated preview endpoint; applied to catalogue + audit
-6. **Silver transform flow** — SELECT + UPSERT-only SQL validation; guided `INSERT OR REPLACE` pattern via agent
+1. ✅ **Rename integrations → connectors** — `db/002_rename_integrations.sql` migration; all service/ingest/agent/frontend call sites updated; API prefix `/api/v1/connectors`
+2. ✅ **`discover_api` agent tool** — httpx pull with SSRF guard (blocks private/loopback IPs); dot-notation json_path extraction; returns sample records for schema inference
+3. ✅ **`jonas-form` chat card** — agent emits ` ```jonas-form ``` ` JSON blocks; `ConnectorFormCard` renders interactive form in ChatPage; submit sends filled values back to agent
+4. ✅ **Job scheduler** — APScheduler `BackgroundScheduler`; `cron_schedule` column on connectors (`db/003_cron_audit.sql`); cron UI + badge in ConnectorsPage; auto-loads jobs on startup
+5. ✅ **Audit page** — `AuditPage.tsx` with Jobs + Logs tabs; `GET /api/v1/audit/jobs` (unified connector+transform runs); `GET /api/v1/audit/logs` with action/entity_type filters
+6. ✅ **Data pager** — inline `DataPager` component in AuditPage; paginated jobs and logs endpoints
+7. ✅ **Silver transform SQL validation** — `_validate_transform_sql` blocks DROP/DELETE/UPDATE/TRUNCATE; enforced on create + execute; upsert pattern in agent system prompt
 
 Deferred:
 - Wire up MotherDuck (when moving beyond local DuckDB)
 
-## Phase 5 — Auth, Tenant Config & Data Segregation (future)
+Bug fixes applied (session 2025-03):
+- Migration comment-stripping bug in `db/init.py` (leading `--` lines caused entire statements to be skipped)
+- `db/001_core_duckdb.sql` updated to use `connector`/`connector_run` table names directly; migration 002 now uses CTAS+DROP instead of RENAME (DuckDB RENAME blocked by UNIQUE constraint catalog dependencies)
+- `audit/router.py`: `rows_affected` → `rows_produced` (transform_run column name)
+- `scripts/reset_demo.py`: `/integrations` → `/connectors` paths
+
+## Phase 5 Status (IN PROGRESS)
 
 > Full plan: [`.claude/docs/phase-5-plan.md`](.claude/docs/phase-5-plan.md)
-> **Needs detailed planning before implementation starts.**
 
-- Real authentication — JWT login/refresh/logout replacing hardcoded demo tokens; invite-only user registration
-- Tenant configuration — per-tenant LLM provider, PII settings, retention policy (admin only)
-- Tenant user administration — invite, role assignment, revoke access (admin only)
-- Tenant data segregation — schema-per-tenant for bronze/silver/gold physical data; RBAC audit + cross-tenant isolation tests; MotherDuck database-per-tenant path
+1. ✅ **JWT auth** — `POST /api/v1/auth/login`, `/auth/refresh`, `/auth/me`; HS256 tokens; PBKDF2-SHA256 password hashing; `src/auth/jwt.py` + `src/auth/router.py`
+2. ✅ **Demo mode** — `DEMO_MODE=true` (default) keeps `admin-token`/`analyst-token`/`viewer-token` working alongside real JWTs; `src/auth/middleware.py` updated
+3. ✅ **Admin user seeded** — demo users (`admin@acme.io`, `analyst@acme.io`, `viewer@acme.io`) get `password_hash` set on bootstrap; password `admin123` (dev default via `ADMIN_PASSWORD` env)
+4. ✅ **LoginPage** — `apps/dashboard/src/pages/LoginPage.tsx`; demo credential quick-fill buttons; JWT stored in localStorage
+5. ✅ **Protected routes** — `RequireAuth` wrapper in `App.tsx`; redirects to `/login` if no token; `LogoutButton` in sidebar
+6. ✅ **Token refresh** — 401 responses trigger silent refresh via `_tryRefresh()` in `api.ts`; on failure clears tokens and user gets "Session expired" error
+
+7. ✅ **Tenant configuration** — `GET/PATCH /api/v1/tenant/config`; `platform.tenant_config` table (migration `005_tenant.sql`); `TenantConfigPage.tsx` (LLM provider/model, PII toggle, limits); admin-only sidebar entry
+8. ✅ **Tenant user administration** — `GET/POST /api/v1/tenant/users`, `PATCH .../role`, `DELETE .../{id}` (soft-revoke via `revoked_at`); `TenantUsersPage.tsx` (table, inline role edit, add-user modal); admin-only sidebar entry
+
+Deferred (Phase 5 remaining):
+- Invite-by-email flow (requires SMTP / Mailpit wiring)
+- Schema-per-tenant data segregation
+- MotherDuck multi-database path
 
 ## Technical Notes
 
@@ -106,7 +121,7 @@ jonas-data-platform/
 │       │   └── pages/
 │       │       ├── DashboardPage.tsx   ← stats + quick actions overview
 │       │       ├── CataloguePage.tsx   ← entity browser
-│       │       ├── IntegrationsPage.tsx
+│       │       ├── ConnectorsPage.tsx
 │       │       ├── TransformsPage.tsx  ← draft/approve workflow
 │       │       ├── LineagePage.tsx     ← medallion lineage graph
 │       │       └── ChatPage.tsx        ← NL chat with Jonas agent

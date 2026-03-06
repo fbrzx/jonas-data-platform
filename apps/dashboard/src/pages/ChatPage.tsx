@@ -1,6 +1,88 @@
 import { useState, useRef, useEffect } from 'react'
 import { api, type ChatMessage, DEMO_TOKENS, getToken, setToken, getRoleFromToken } from '../lib/api'
 
+// ── Jonas-form card ────────────────────────────────────────────────────────────
+
+interface JonasFormField {
+  key: string
+  label: string
+  type: 'text' | 'select' | 'kv' | 'json'
+  required?: boolean
+  options?: string[]
+  placeholder?: string
+}
+
+interface JonasFormSpec {
+  type: string
+  fields: JonasFormField[]
+  submit_label?: string
+}
+
+function ConnectorFormCard({
+  spec,
+  onSubmit,
+}: {
+  spec: JonasFormSpec
+  onSubmit: (values: Record<string, string>) => void
+}) {
+  const [values, setValues] = useState<Record<string, string>>({})
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    onSubmit(values)
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="my-3 rounded border border-j-accent bg-j-accent-dim overflow-hidden"
+    >
+      <div className="px-3 py-2 border-b border-j-accent flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-j-accent" />
+        <span className="font-mono text-[10px] font-semibold tracking-[0.12em] uppercase text-j-accent">
+          {spec.type.replace(/_/g, ' ')}
+        </span>
+      </div>
+      <div className="px-3 py-3 space-y-3 bg-j-surface">
+        {spec.fields.map((field) => (
+          <div key={field.key}>
+            <label className="font-mono text-[10px] text-j-dim block mb-1">
+              {field.label}
+              {field.required && <span className="text-j-red ml-1">*</span>}
+            </label>
+            {field.type === 'select' ? (
+              <select
+                value={values[field.key] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                className="w-full bg-j-surface2 border border-j-border rounded px-2 py-1.5 font-mono text-xs text-j-bright focus:outline-none focus:border-j-accent"
+              >
+                <option value="">— select —</option>
+                {(field.options ?? []).map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder={field.placeholder ?? ''}
+                value={values[field.key] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                className="w-full bg-j-surface2 border border-j-border rounded px-2 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+              />
+            )}
+          </div>
+        ))}
+        <button
+          type="submit"
+          className="w-full font-mono text-[10px] tracking-[0.1em] uppercase text-j-bg bg-j-accent border border-j-accent px-3 py-1.5 rounded hover:opacity-90 transition-opacity"
+        >
+          {spec.submit_label ?? 'Submit'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 // ── Code block ────────────────────────────────────────────────────────────────
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
@@ -75,14 +157,32 @@ function formatInline(text: string): React.ReactNode {
   return <>{parts}</>
 }
 
-function renderContent(text: string): React.ReactNode[] {
+function renderContent(
+  text: string,
+  onFormSubmit?: (values: Record<string, string>) => void
+): React.ReactNode[] {
   const parts: React.ReactNode[] = []
   const fenceRegex = /```(\w*)\n?([\s\S]*?)```/g
   let last = 0, match: RegExpExecArray | null
   while ((match = fenceRegex.exec(text)) !== null) {
     if (match.index > last)
       parts.push(<InlineText key={`t-${last}`} text={text.slice(last, match.index)} />)
-    parts.push(<CodeBlock key={`c-${match.index}`} lang={match[1]} code={match[2].trimEnd()} />)
+    if (match[1] === 'jonas-form' && onFormSubmit) {
+      try {
+        const spec = JSON.parse(match[2].trim()) as JonasFormSpec
+        parts.push(
+          <ConnectorFormCard
+            key={`f-${match.index}`}
+            spec={spec}
+            onSubmit={onFormSubmit}
+          />
+        )
+      } catch {
+        parts.push(<CodeBlock key={`c-${match.index}`} lang={match[1]} code={match[2].trimEnd()} />)
+      }
+    } else {
+      parts.push(<CodeBlock key={`c-${match.index}`} lang={match[1]} code={match[2].trimEnd()} />)
+    }
     last = match.index + match[0].length
   }
   if (last < text.length)
@@ -92,7 +192,15 @@ function renderContent(text: string): React.ReactNode[] {
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
-function Message({ msg, idx }: { msg: ChatMessage; idx: number }) {
+function Message({
+  msg,
+  idx,
+  onFormSubmit,
+}: {
+  msg: ChatMessage
+  idx: number
+  onFormSubmit?: (values: Record<string, string>) => void
+}) {
   const isUser = msg.role === 'user'
   return (
     <div className="fade-up flex gap-3 mb-5" style={{ animationDelay: `${idx * 20}ms` }}>
@@ -116,7 +224,7 @@ function Message({ msg, idx }: { msg: ChatMessage; idx: number }) {
         }`}>
           {isUser
             ? <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-            : renderContent(msg.content)
+            : renderContent(msg.content, onFormSubmit)
           }
         </div>
       </div>
@@ -153,8 +261,8 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
   const handleTokenChange = (t: string) => { setToken(t); setTokenState(t); setMessages([]); setError(null) }
   const handleNewChat = () => { setMessages([]); setInput(''); setError(null) }
 
-  const sendMessage = async () => {
-    const text = input.trim()
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim()
     if (!text || loading) return
     const userMsg: ChatMessage = { role: 'user', content: text }
     const next = [...messages, userMsg]
@@ -264,7 +372,16 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
           </div>
         )}
 
-        {messages.map((msg, i) => <Message key={i} msg={msg} idx={i} />)}
+        {messages.map((msg, i) => (
+          <Message
+            key={i}
+            msg={msg}
+            idx={i}
+            onFormSubmit={(values) => {
+              sendMessage(`Here are the connection details: ${JSON.stringify(values, null, 2)}`)
+            }}
+          />
+        ))}
 
         {loading && (
           <div className="flex gap-3 mb-5">
@@ -302,7 +419,7 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
             className="flex-1 resize-y min-h-[6rem] rounded border border-j-border bg-j-surface2 text-j-text text-sm font-mono px-3 py-2.5 placeholder-j-dim focus:outline-none focus:border-j-accent transition-colors"
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
             className="px-4 py-2.5 rounded border border-j-accent bg-j-accent-dim text-j-accent font-mono text-[11px] tracking-[0.1em] uppercase hover:bg-j-accent hover:text-j-bg disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
           >

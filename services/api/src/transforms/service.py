@@ -16,6 +16,63 @@ def _now() -> str:
 
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+_ALLOWED_STMT = re.compile(
+    r"^\s*(SELECT|INSERT\s+OR\s+REPLACE|INSERT\s+OR\s+IGNORE|CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?TABLE)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split semicolon-delimited SQL into individual non-empty statements.
+
+    Strips leading comment lines from each chunk so that a statement beginning
+    with a block of comments is not mistakenly treated as empty.
+    """
+    stmts = []
+    for chunk in sql.split(";"):
+        lines = [ln for ln in chunk.splitlines() if not ln.strip().startswith("--")]
+        cleaned = "\n".join(lines).strip()
+        if cleaned:
+            stmts.append(cleaned)
+    return stmts
+
+
+def _validate_transform_sql(sql: str) -> None:
+    """Raise ValueError if any statement uses forbidden operations."""
+    for stmt in _split_sql_statements(sql):
+        if not _ALLOWED_STMT.match(stmt):
+            raise ValueError(
+                "Transform SQL must only contain SELECT, INSERT OR REPLACE, "
+                "INSERT OR IGNORE, or CREATE TABLE statements. "
+                "DROP, DELETE, UPDATE, and TRUNCATE are not permitted."
+            )
+
+
+def _extract_select_blocks(sql: str) -> list[str]:
+    """Return all SELECT sub-queries from a (possibly multi-statement) SQL block.
+
+    Used for dry-run validation — we only want to execute the SELECT parts,
+    not CREATE TABLE or INSERT INTO (which reference tables that may not exist yet).
+    """
+    blocks: list[str] = []
+    for stmt in _split_sql_statements(sql):
+        # CTAS: CREATE TABLE ... AS SELECT ...
+        m = re.search(r"(?i)\bAS\s+(SELECT\b.+)", stmt, re.DOTALL)
+        if m:
+            blocks.append(m.group(1).strip())
+            continue
+        # INSERT [OR ...] INTO table SELECT ...
+        m = re.search(
+            r"(?i)\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+\S+\s+(SELECT\b.+)", stmt, re.DOTALL
+        )
+        if m:
+            blocks.append(m.group(1).strip())
+            continue
+        # Bare SELECT
+        if re.match(r"(?i)\s*SELECT\b", stmt):
+            blocks.append(stmt)
+    return blocks
+
 
 def _validate_identifier(value: str, field_name: str) -> str:
     candidate = value.strip().lower()
@@ -64,6 +121,9 @@ def get_transform(transform_id: str, tenant_id: str) -> dict[str, Any] | None:
 def create_transform(
     data: dict[str, Any], tenant_id: str, created_by: str
 ) -> dict[str, Any]:
+    sql = data.get("sql", data.get("transform_sql", "")).strip()
+    if sql:
+        _validate_transform_sql(sql)
     conn = get_conn()
     transform_id = str(uuid.uuid4())
     now = _now()
@@ -165,8 +225,19 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
     start = time.monotonic()
     errors: list[str] = []
     rows_affected = 0
-    target_name = _safe_table_name(str(transform["name"]))
-    target_table = f"{target_layer}.{target_name}"
+
+    # Infer target table from SQL (CREATE TABLE or INSERT INTO) rather than transform name,
+    # since the SQL is the source of truth for what gets created.
+    sql_for_target = str(transform.get("transform_sql", ""))
+    target_table_match = re.search(
+        r"(?i)\b(?:CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|INSERT\s+(?:OR\s+\w+\s+)?INTO\s+)([a-z_][a-z0-9_.]*)",
+        sql_for_target,
+    )
+    if target_table_match:
+        target_table = target_table_match.group(1)
+    else:
+        target_name = _safe_table_name(str(transform["name"]))
+        target_table = f"{target_layer}.{target_name}"
 
     run_id = str(uuid.uuid4())
     started_at = _now()
@@ -181,35 +252,47 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         [run_id, transform_id, started_at],
     )
 
-    # Pre-validate: EXPLAIN catches column/table errors before touching data
+    # Pre-validate: check statement types + dry-run the SELECT parts with LIMIT 1.
+    # We only EXPLAIN/run the SELECT parts so we don't hit "table not found" errors
+    # when the CREATE TABLE hasn't run yet (two-statement upsert pattern).
     sql = str(transform["transform_sql"])
-    explain_sql = sql
-    create_match = re.search(r"(?i)\bAS\s+(SELECT\b.*)", sql, re.DOTALL)
-    if create_match:
-        explain_sql = create_match.group(1)
     try:
-        conn.execute(f"EXPLAIN {explain_sql}")
-    except Exception as exc:
-        err = str(exc)
-        hint = ""
-        col_match = re.search(
-            r'does not have a column named "([^"]+)"', err, re.IGNORECASE
-        )
-        if col_match:
-            col = col_match.group(1)
-            hint = (
-                f' Hint: "{col}" is not a physical column. '
-                f"If this table uses webhook/api_pull format the field lives inside the "
-                f"`payload` JSON column — use json_extract_string(payload, '$.{col}') "
-                f"instead. Call describe_entity to see physical_columns and payload_keys, "
-                f"then call update_transform with the corrected SQL before re-approving."
-            )
-        errors.append(f"SQL validation error: {err}.{hint}")
+        _validate_transform_sql(sql)
+    except ValueError as exc:
+        errors.append(str(exc))
 
     if not errors:
+        for sel in _extract_select_blocks(sql):
+            try:
+                conn.execute(
+                    f"SELECT * FROM ({sel.rstrip(';')}) AS _pre_validate_q LIMIT 1"  # noqa: S608
+                )
+            except Exception as exc:
+                err = str(exc)
+                hint = ""
+                col_match = re.search(
+                    r'does not have a column named "([^"]+)"', err, re.IGNORECASE
+                )
+                if col_match:
+                    col = col_match.group(1)
+                    hint = (
+                        f' Hint: "{col}" is not a physical column. '
+                        "For webhook/api_pull tables the field lives inside the "
+                        f"`payload` JSON column — use json_extract_string(payload, '$.{col}'). "
+                        "Call update_transform with the corrected SQL before re-approving."
+                    )
+                errors.append(f"SQL validation error: {err}.{hint}")
+                break  # stop at first SELECT error
+
+    if not errors:
+        # Execute each statement in sequence — DuckDB conn.execute() only runs
+        # one statement at a time, so multi-statement transforms (CREATE + INSERT)
+        # must be split and executed individually.
+        stmts = _split_sql_statements(sql)
         try:
-            conn.execute(sql)
-            # CTAS / DDL statements don't return rows — query the target table for count
+            for stmt in stmts:
+                conn.execute(stmt)
+            # Query the target table for final row count
             try:
                 row = conn.execute(
                     f"SELECT COUNT(*) FROM {target_table}"  # noqa: S608

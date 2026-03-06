@@ -329,7 +329,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
                         "NEVER use bare field names as SQL columns."
                     )
                     lines.append(f"  Physical columns: {', '.join(phys_cols)}")
-                    # Surface the actual payload keys from a sample row
+                    # Surface the actual payload keys from a sample row, plus array field hints
                     try:
                         sample_row = conn.execute(
                             f"SELECT payload FROM {layer}.{name} LIMIT 1"  # noqa: S608
@@ -346,6 +346,19 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
                                     f"  Payload keys: {', '.join(keys)}"
                                     f"  — example: json_extract_string(payload, '$.{keys[0]}')"
                                 )
+                                # Flag JSON array fields with sub-key hints
+                                for k, v in sample_payload.items():
+                                    if (
+                                        isinstance(v, list)
+                                        and v
+                                        and isinstance(v[0], dict)
+                                    ):
+                                        sub_keys = list(v[0].keys())[:8]
+                                        lines.append(
+                                            f"  Array field '{k}': unnest with "
+                                            f"CROSS JOIN UNNEST(json_extract(payload, '$.{k}')::JSON[]) AS t(elem)"
+                                            f" — sub-keys: {', '.join(sub_keys)}"
+                                        )
                             elif (
                                 isinstance(sample_payload, list)
                                 and sample_payload
@@ -386,7 +399,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
     # ── Integrations ─────────────────────────────────────────────────────────
     try:
         int_rows = conn.execute(
-            "SELECT id, name, connector_type, status, target_entity_id FROM integrations.integration WHERE tenant_id = ?",  # noqa: E501
+            "SELECT id, name, connector_type, status, target_entity_id FROM integrations.connector WHERE tenant_id = ?",  # noqa: E501
             [tenant_id],
         ).fetchall()
         int_cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
@@ -395,12 +408,12 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
         integrations = []
 
     if integrations:
-        lines.append("## Integrations (data sources)\n")
+        lines.append("## Connectors (data sources)\n")
         for i in integrations:
             eid = str(i.get("target_entity_id") or "")
             linked = f" → {entity_map.get(eid, eid)}" if eid else " (no entity linked)"
             trigger = (
-                f"  trigger: POST /api/v1/integrations/{i['id']}/trigger"
+                f"  trigger: POST /api/v1/connectors/{i['id']}/trigger"
                 if i.get("connector_type") == "api_pull"
                 else ""
             )

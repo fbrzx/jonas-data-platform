@@ -11,6 +11,12 @@ from datetime import UTC, datetime
 from src.db.connection import get_conn
 
 _DDL_FILENAME = "001_core_duckdb.sql"
+_MIGRATIONS = [
+    "002_rename_integrations.sql",
+    "003_cron_audit.sql",
+    "004_auth.sql",
+    "005_tenant.sql",
+]
 
 _ORDERS_JSON_TRANSFORM_SQL = """CREATE OR REPLACE TABLE silver.orders_cleaned AS
 WITH parsed AS (
@@ -103,4 +109,57 @@ def bootstrap() -> None:
 
     _migrate_legacy_orders_transform_sql()
 
+    # Run sequential migrations
+    for migration_filename in _MIGRATIONS:
+        migration_path = DDL_PATH.parent / migration_filename
+        if not migration_path.exists():
+            print(f"[db.init] Migration not found: {migration_path} — skipping")
+            continue
+        migration_sql = migration_path.read_text()
+        mig_statements = []
+        for s in migration_sql.split(";"):
+            # Strip leading comment lines, then check if any SQL remains
+            lines = [ln for ln in s.splitlines() if not ln.strip().startswith("--")]
+            sql = "\n".join(lines).strip()
+            if sql:
+                mig_statements.append(sql)
+        for stmt in mig_statements:
+            try:
+                conn.execute(stmt)
+            except Exception as exc:
+                print(
+                    f"[db.init] Migration {migration_filename}: {exc!r} (statement: {stmt[:60]!r})"
+                )
+
+    seed_admin_password()
     print(f"[db.init] Bootstrap complete ({len(statements)} statements)")
+
+
+def seed_admin_password() -> None:
+    """Set password hashes for all demo users if not yet set.
+
+    Uses ADMIN_PASSWORD env var (default 'admin123' for dev).
+    Runs on every bootstrap but is a no-op when already set.
+    """
+    import os
+
+    from src.auth.jwt import hash_password
+
+    password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    conn = get_conn()
+    try:
+        demo_users = ["user-admin", "user-analyst", "user-viewer"]
+        h = hash_password(password)
+        for user_id in demo_users:
+            row = conn.execute(
+                "SELECT password_hash FROM platform.user_account WHERE id = ?",
+                [user_id],
+            ).fetchone()
+            if row and not row[0]:
+                conn.execute(
+                    "UPDATE platform.user_account SET password_hash = ? WHERE id = ?",
+                    [h, user_id],
+                )
+        print("[db.init] Demo user passwords set")
+    except Exception as exc:
+        print(f"[db.init] Could not seed user passwords: {exc!r}")

@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_secret_key: str = "change_me_in_production"
     debug: bool = False
+    demo_mode: bool = True
+    admin_password: str = "admin123"
 
     # DuckDB — local file path; set MOTHERDUCK_TOKEN to use MotherDuck instead
     duckdb_path: str = "data/db/jonas.duckdb"

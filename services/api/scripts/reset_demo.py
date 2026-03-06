@@ -46,8 +46,8 @@ def wipe_existing() -> None:
     print("\n[0/3] Wiping existing data")
     for e in api_get("/catalogue/entities"):
         api_delete(f"/catalogue/entities/{e['id']}")
-    for intg in api_get("/integrations"):
-        api_delete(f"/integrations/{intg['id']}")
+    for intg in api_get("/connectors"):
+        api_delete(f"/connectors/{intg['id']}") 
     for t in api_get("/transforms"):
         api_delete(f"/transforms/{t['id']}")
     print("  ✓  wiped")
@@ -60,7 +60,7 @@ def ingest_batch(name: str, file_path: Path) -> None:
     suffix = file_path.suffix.lstrip(".")
     with file_path.open("rb") as fh:
         r = httpx.post(
-            f"{API_BASE}/integrations/ingest/batch",
+            f"{API_BASE}/connectors/ingest/batch",
             params={"source": name},
             files={"file": (file_path.name, fh, f"text/{suffix}")},
             headers={"Authorization": "Bearer admin-token"},
@@ -389,7 +389,7 @@ def main() -> None:
     # ── Integrations ──────────────────────────────────────────────────────────
     print("\n[2/3] Integrations")
     for intg in INTEGRATIONS:
-        result = api_post("/integrations", intg)
+        result = api_post("/connectors", intg)
         if result.get("id"):
             print(f"  ✓  {intg['name']}")
 

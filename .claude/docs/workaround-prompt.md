@@ -97,9 +97,13 @@ I need to create a complete data pipeline from three OpenAPI endpoints. Here are
 
 - orders_sync → https://openapidata.github.io/api/v1/orders.json
 
+Simplified:
 
+Import the data from these endpoints, and register the bronze entities:
 
-
+https://openapidata.github.io/api/v1/users.json
+https://openapidata.github.io/api/v1/products.json
+https://openapidata.github.io/api/v1/orders.json
 
 ## Chat2
 
@@ -119,6 +123,6 @@ Now, create a silver aggregation transform named users_with_orders_aggregation t
 
 - Includes all relevant user, order, and product fields
 
-- Result table: silver.users_with_orders
+- Result table: silver.users_with_orders, ensure it is registered in the catalogue
 
 ---

@@ -21,6 +21,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pytz>=2024.1",
     "slowapi>=0.1.9",
+    "apscheduler>=3.10,<4.0",
 ]
 
 [project.optional-dependencies]

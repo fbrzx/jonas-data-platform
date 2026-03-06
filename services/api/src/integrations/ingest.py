@@ -32,7 +32,7 @@ def _record_run(
     try:
         conn.execute(
             """
-            INSERT INTO integrations.integration_run
+            INSERT INTO integrations.connector_run
                 (id, integration_id, status, started_at, completed_at,
                  records_in, records_out, records_rejected, error_detail, stats)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

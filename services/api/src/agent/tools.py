@@ -158,13 +158,13 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["entity_id"],
         },
     },
-    # ── Integrations ─────────────────────────────────────────────────────────
+    # ── Connectors ───────────────────────────────────────────────────────────
     {
-        "name": "list_integrations",
+        "name": "list_connectors",
         "description": (
-            "List all data integrations configured for the current tenant. "
-            "Returns integration names, connector types (webhook/batch_csv/batch_json), "
-            "statuses, linked entity IDs, and integration IDs. "
+            "List all data connectors configured for the current tenant. "
+            "Returns connector names, types (webhook/batch_csv/batch_json/api_pull), "
+            "statuses, linked entity IDs, and connector IDs. "
             "Call this first when the user wants to import data, to see what exists."
         ),
         "input_schema": {
@@ -174,9 +174,9 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "get_integration_runs",
+        "name": "get_connector_runs",
         "description": (
-            "Return the recent run history for a specific integration. "
+            "Return the recent run history for a specific connector. "
             "Each run shows status (success/partial/failed), timestamps, "
             "records_in, records_out, records_rejected, and any error detail. "
             "Use this to diagnose import failures or confirm that data landed successfully."
@@ -184,34 +184,68 @@ TOOLS: list[dict[str, Any]] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "integration_id": {
+                "connector_id": {
                     "type": "string",
-                    "description": "UUID of the integration",
+                    "description": "UUID of the connector",
                 },
             },
-            "required": ["integration_id"],
+            "required": ["connector_id"],
+        },
+    },
+    {
+        "name": "discover_api",
+        "description": (
+            "Perform a single HTTP request to an external API and return the raw response "
+            "for schema inference. Use this to explore an API before creating a connector. "
+            "SSRF-protected: only public http/https URLs are allowed. "
+            "Returns sample records (up to 5) and total record count."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Full URL to fetch"},
+                "method": {
+                    "type": "string",
+                    "enum": ["GET", "POST", "PUT"],
+                    "description": "HTTP method (default: GET)",
+                },
+                "headers": {
+                    "type": "object",
+                    "description": 'Request headers (e.g. {"Authorization": "Bearer token"})',
+                },
+                "body": {
+                    "type": "object",
+                    "description": "Request body for POST/PUT",
+                },
+                "json_path": {
+                    "type": "string",
+                    "description": "Dot-notation path to the records array in the response"
+                    " (e.g. 'data.items')",
+                },
+            },
+            "required": ["url"],
         },
     },
     {
         "name": "ingest_webhook",
         "description": (
             "Send a JSON data payload into the bronze layer via webhook ingestion. "
-            "Step 1: call list_integrations to find or confirm the target integration. "
-            "Step 2: if no integration exists, create one with create_integration first. "
+            "Step 1: call list_connectors to find or confirm the target connector. "
+            "Step 2: if no connector exists, create one with create_connector first. "
             "Step 3: show the user exactly what data will be sent and to which table, "
             "then confirm. "
-            "Step 4: call this tool with integration_id (preferred) or an explicit source name. "
-            "The bronze table name is derived from the integration's linked entity name, "
-            "or from the integration name if no entity is linked. "
-            "After ingesting, call get_integration_runs to verify rows landed successfully."
+            "Step 4: call this tool with connector_id (preferred) or an explicit source name. "
+            "The bronze table name is derived from the connector's linked entity name, "
+            "or from the connector name if no entity is linked. "
+            "After ingesting, call get_connector_runs to verify rows landed successfully."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "integration_id": {
+                "connector_id": {
                     "type": "string",
                     "description": (
-                        "UUID of an existing webhook integration. "
+                        "UUID of an existing webhook connector. "
                         "When provided, the source table is automatically derived — "
                         "no need to specify source separately."
                     ),
@@ -238,17 +272,20 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "create_integration",
+        "name": "create_connector",
         "description": (
-            "Register a new data integration (webhook receiver or batch file upload source). "
+            "Register a new data connector (webhook receiver, batch file upload, or API pull). "
             "Choose connector_type based on how data will arrive:\n"
             "  - 'webhook': for real-time JSON events pushed via HTTP POST\n"
             "  - 'batch_csv': for periodic CSV file uploads (max 50 MB)\n"
             "  - 'batch_json': for periodic JSON file uploads (array or newline-delimited)\n"
-            "When creating an integration for an existing catalogue entity, pass entity_id so "
+            "  - 'api_pull': platform fetches JSON from a remote URL on demand"
+            " (requires config.url)\n"
+            "When creating a connector for an existing catalogue entity, pass entity_id so "
             "the entity's name becomes the canonical bronze table — ingest and preview will "
             "always refer to the same table. If no entity exists yet, create one with "
-            "register_entity first (infer_schema → register_entity → create_integration). "
+            "register_entity first (infer_schema → register_entity → create_connector). "
+            "For api_pull connectors, call discover_api first to inspect the remote data. "
             "Requires admin or analyst role. Always confirm the name, type, and linked entity "
             "with the user before creating."
         ),

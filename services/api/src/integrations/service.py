@@ -15,7 +15,7 @@ def _now() -> str:
 def list_integrations(tenant_id: str) -> list[dict[str, Any]]:
     conn = get_conn()
     rows = conn.execute(
-        "SELECT * FROM integrations.integration WHERE tenant_id = ?", [tenant_id]
+        "SELECT * FROM integrations.connector WHERE tenant_id = ?", [tenant_id]
     ).fetchall()
     cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
     return [dict(zip(cols, row)) for row in rows]
@@ -24,7 +24,7 @@ def list_integrations(tenant_id: str) -> list[dict[str, Any]]:
 def get_integration(integration_id: str, tenant_id: str) -> dict[str, Any] | None:
     conn = get_conn()
     row = conn.execute(
-        "SELECT * FROM integrations.integration WHERE id = ? AND tenant_id = ?",
+        "SELECT * FROM integrations.connector WHERE id = ? AND tenant_id = ?",
         [integration_id, tenant_id],
     ).fetchone()
     if not row:
@@ -39,7 +39,7 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     now = _now()
     conn.execute(
         """
-        INSERT INTO integrations.integration
+        INSERT INTO integrations.connector
             (id, tenant_id, name, description, connector_type, config,
              status, tags, target_entity_id, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
@@ -91,7 +91,7 @@ def update_integration(
     set_clauses = ", ".join(f"{col} = ?" for col in db_updates)
     values = list(db_updates.values()) + [_now(), integration_id, tenant_id]
     conn.execute(
-        f"UPDATE integrations.integration SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608 E501
+        f"UPDATE integrations.connector SET {set_clauses}, updated_at = ? WHERE id = ? AND tenant_id = ?",  # noqa: S608 E501
         values,
     )
     return get_integration(integration_id, tenant_id)
@@ -99,7 +99,7 @@ def update_integration(
 
 def delete_integration(integration_id: str, tenant_id: str) -> None:
     get_conn().execute(
-        "DELETE FROM integrations.integration WHERE id = ? AND tenant_id = ?",
+        "DELETE FROM integrations.connector WHERE id = ? AND tenant_id = ?",
         [integration_id, tenant_id],
     )
 
@@ -115,7 +115,7 @@ def list_runs(
         return []
     rows = conn.execute(
         """
-        SELECT * FROM integrations.integration_run
+        SELECT * FROM integrations.connector_run
         WHERE integration_id = ?
         ORDER BY started_at DESC
         LIMIT ?

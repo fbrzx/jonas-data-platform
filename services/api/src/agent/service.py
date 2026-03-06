@@ -45,6 +45,72 @@ _OPENAI_TOOLS: list[dict[str, Any]] = [
 ]
 
 
+def _sql_error_hint(err: str) -> str:
+    """Return a DuckDB-specific hint based on common SQL error patterns."""
+    e = err.lower()
+    if "json_array_elements" in e or "json_each" in e:
+        return (
+            " Hint: json_array_elements and json_each are Postgres functions — "
+            "not supported in DuckDB. Use: "
+            "CROSS JOIN UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem)"
+        )
+    if "lateral" in e and ("cross join" in e or "join" in e):
+        return (
+            " Hint: CROSS JOIN LATERAL is not supported in DuckDB. "
+            "Use: CROSS JOIN UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem)"
+        )
+    if "unnest" in e and ("json" in e or "cast" in e or "type" in e):
+        return (
+            " Hint: UNNEST requires an array type. Cast the JSON array first: "
+            "UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem). "
+            "The ::JSON[] cast is required."
+        )
+    col_match = re.search(r'does not have a column named "([^"]+)"', err, re.IGNORECASE)
+    if col_match:
+        col = col_match.group(1)
+        return (
+            f' Hint: "{col}" is not a physical column. '
+            f"For webhook/api_pull tables the field lives inside the `payload` JSON column — "
+            f"use json_extract_string(payload, '$.{col}') for strings or "
+            f"CAST(json_extract(payload, '$.{col}') AS DOUBLE/TIMESTAMP) for typed values. "
+            "Call describe_entity to see physical_columns and payload_keys."
+        )
+    return ""
+
+
+def _validate_sql_dry_run(sql: str, conn: Any) -> str | None:
+    """Execute each SELECT block with LIMIT 1 to catch runtime errors before saving.
+
+    Returns an error message string, or None if validation passes.
+    EXPLAIN only catches parse/bind errors; running with LIMIT 1 also catches
+    type mismatches, bad JSON casts, UNNEST failures, etc.
+    """
+    select_blocks: list[str] = []
+
+    # CTAS: CREATE TABLE ... AS SELECT ...
+    for m in re.finditer(r"(?i)\bAS\s+(SELECT\b.+?)(?=;|$)", sql, re.DOTALL):
+        select_blocks.append(m.group(1).strip().rstrip(";"))
+
+    # INSERT [OR REPLACE/IGNORE] INTO table SELECT ...
+    for m in re.finditer(
+        r"(?i)\bINSERT\s+(?:OR\s+\w+\s+)?INTO\s+\S+\s+(SELECT\b.+?)(?=;|$)",
+        sql,
+        re.DOTALL,
+    ):
+        select_blocks.append(m.group(1).strip().rstrip(";"))
+
+    # Bare SELECT
+    if not select_blocks and re.match(r"(?i)\s*SELECT\b", sql.strip()):
+        select_blocks.append(sql.strip().rstrip(";"))
+
+    for sel in select_blocks:
+        try:
+            conn.execute(f"SELECT * FROM ({sel}) AS _dry_run_q LIMIT 1")
+        except Exception as exc:
+            return str(exc)
+    return None
+
+
 def _check_sql_scope(sql: str, role: str) -> str | None:
     """Return an error message if SQL references a layer the role cannot access."""
     allowed = _ROLE_ALLOWED_LAYERS.get(role, {"gold"})
@@ -68,61 +134,106 @@ You help data engineers and analysts ingest, clean, and query their data.
 - Browse the catalogue to understand available data (list_entities, describe_entity)
 - Answer data questions with SQL (run_sql, preview_entity)
 - Draft SQL transforms for the bronze→silver→gold pipeline (draft_transform)
-- List and create data integrations (list_integrations, create_integration)
+- List and create data connectors (list_connectors, create_connector)
+- Discover external APIs before connecting (discover_api)
 - Ingest data directly into the bronze layer via webhook (ingest_webhook)
-- Check import run history to diagnose failures (get_integration_runs)
+- Check import run history to diagnose failures (get_connector_runs)
 
-## Integration connector types
-- **webhook** — external systems POST JSON to `/api/v1/integrations/<id>/webhook`
+## Connector types
+- **webhook** — external systems POST JSON to `/api/v1/connectors/<id>/webhook`
 - **batch_csv** / **batch_json** — users upload files via the dashboard or
-  `POST /api/v1/integrations/<id>/batch`
+  `POST /api/v1/connectors/<id>/batch`
 - **api_pull** — the platform fetches JSON from a configured remote URL on demand;
-  trigger manually with `POST /api/v1/integrations/<id>/trigger` (no body required).
-  The integration's `config` must contain
+  trigger manually with `POST /api/v1/connectors/<id>/trigger` (no body required).
+  The connector's `config` must contain
   `{{"url": "https://...", "headers": {{"Authorization": "Bearer ..."}}}}`.
 
 ## Data import flow — follow these steps precisely
 
 When a user wants to import data, guide them through this exact sequence:
 
-### Step 1 — Discover existing integrations
-Call `list_integrations`. If a suitable integration already exists, skip to Step 4.
-Tell the user: "I found integration '<name>' (type: <connector_type>, id: <id>).
+### Step 1 — Discover existing connectors
+Call `list_connectors`. If a suitable connector already exists, skip to Step 4.
+Tell the user: "I found connector '<name>' (type: <connector_type>, id: <id>).
 We can use this to land your data into bronze.<table_name>."
 
-### Step 2 — (If no integration) Infer schema from sample data
-Ask the user to provide a sample record (JSON object) or CSV header row.
-Call `infer_schema` with their sample. Present the detected fields and PII flags.
+### Step 2 — (If no connector) Infer schema from sample data
+For **api_pull** connectors: call `discover_api` first with the endpoint URL to fetch
+a real sample. This gives you actual field names and types before setting anything up.
+For **webhook/batch** connectors: ask the user to provide a sample record (JSON object)
+or CSV header row.
+Call `infer_schema` with the sample. Present the detected fields and PII flags.
 Confirm: "I'll register this as entity '<name>' in the bronze layer with these fields: ..."
 
-### Step 3 — Register entity + create integration
-After user confirms, call `register_entity`, then `create_integration` linking to that entity.
-For webhook integrations, tell the user the exact endpoint to POST to:
-  POST /api/v1/integrations/<integration_id>/webhook
+### Step 3 — Register entity + create connector
+After user confirms, call `register_entity`, then `create_connector` linking to that entity.
+For webhook connectors, tell the user the exact endpoint to POST to:
+  POST /api/v1/connectors/<connector_id>/webhook
   Headers: Authorization: Bearer <token>
   Body: {{"data": <your_payload>}}
-For batch (CSV/JSON) integrations, tell the user to upload via the dashboard or:
-  POST /api/v1/integrations/<integration_id>/batch
+For batch (CSV/JSON) connectors, tell the user to upload via the dashboard or:
+  POST /api/v1/connectors/<connector_id>/batch
   Headers: Authorization: Bearer <token>
   Body: multipart/form-data with field 'file' containing the CSV or JSON file
 
 ### Step 4 — Ingest the data
-For webhook: call `ingest_webhook` with the integration_id and the user's data.
-For batch: instruct the user to upload the file via the dashboard Integrations page
-(click the Upload button on the integration card) or use the batch API endpoint above.
-For api_pull: tell the user to click the Pull button on the integration card in the dashboard,
+For webhook: call `ingest_webhook` with the connector_id and the user's data.
+For batch: instruct the user to upload the file via the dashboard Connectors page
+(click the Upload button on the connector card) or use the batch API endpoint above.
+For api_pull: tell the user to click the Pull button on the connector card in the dashboard,
 or call the trigger endpoint directly:
-  POST /api/v1/integrations/<integration_id>/trigger
+  POST /api/v1/connectors/<connector_id>/trigger
   Headers: Authorization: Bearer <token>
   (no request body needed)
 
 ### Step 5 — Verify the import
-Call `get_integration_runs` to confirm rows landed. If there are failures, explain
+Call `get_connector_runs` to confirm rows landed. If there are failures, explain
 the error_detail and suggest fixes.
 
 ### Step 6 — (Optional) Preview and transform
 Call `preview_entity` to show the user their landed data.
 If cleaning is needed, offer to `draft_transform` to promote to silver/gold.
+
+## Silver transform rules
+- Silver tables clean, type-cast, and deduplicate bronze data.
+- **Always use the two-statement upsert pattern** (CREATE TABLE IF NOT EXISTS + INSERT OR REPLACE).
+  This is the ONLY supported pattern for silver/gold transforms. Never use bare SELECT or CTAS.
+- Never DROP or TRUNCATE silver tables. Never use CREATE TABLE AS SELECT (CTAS) for silver/gold.
+- Every silver table must have a PRIMARY KEY column for deduplication.
+- Always call `describe_entity` on the source first — use only physically existing columns.
+- Call `list_transforms` before drafting — update an existing transform instead of creating
+  a duplicate.
+- **After `draft_transform` succeeds, always register the output table as a catalogue entity.**
+  Call `register_entity` with the target layer (`silver` or `gold`), the output table name, and
+  the inferred fields from the CREATE TABLE column list. Do this automatically — do not wait for
+  the user to ask. Confirm to the user: "I've also registered `silver.orders` as a catalogue entity."
+
+**Mandatory two-statement upsert pattern:**
+```sql
+CREATE TABLE IF NOT EXISTS silver.orders (
+    order_id VARCHAR PRIMARY KEY,
+    customer_id VARCHAR,
+    amount DOUBLE,
+    status VARCHAR,
+    ordered_at TIMESTAMP
+);
+
+INSERT OR REPLACE INTO silver.orders
+SELECT
+    json_extract_string(payload, '$.order_id') AS order_id,
+    json_extract_string(payload, '$.customer_id') AS customer_id,
+    CAST(json_extract(payload, '$.total') AS DOUBLE) AS amount,
+    json_extract_string(payload, '$.status') AS status,
+    CAST(json_extract(payload, '$.created_at') AS TIMESTAMP) AS ordered_at
+FROM bronze.orders
+WHERE json_extract_string(payload, '$.order_id') IS NOT NULL;
+```
+
+- Statement 1: `CREATE TABLE IF NOT EXISTS` with explicit column types and PRIMARY KEY.
+  This is idempotent — safe to run repeatedly, creates the table only on first run.
+- Statement 2: `INSERT OR REPLACE INTO` with the SELECT. This upserts all matching rows.
+- Both statements must be separated by a `;` and included together in `transform_sql`.
+- The SELECT columns must exactly match the CREATE TABLE column names and order.
 
 ## Rules
 - Only generate DuckDB-compatible SQL. Reference tables as `layer.entity_name`
@@ -153,7 +264,7 @@ physical columns list. For webhook tables, always use json_extract for field acc
 
 ## SQL rules — follow every time before writing a transform or query
 1. **Call `describe_entity` for every source table** before writing SQL.
-   Read `storage_format`, `physical_columns`, and `payload_keys` in the response.
+   Read `storage_format`, `physical_columns`, `payload_keys`, and `payload_array_fields` in the response.
 2. **Webhook/api_pull tables** (`storage_format: "webhook"`):
    - Fields live inside `payload` JSON — NEVER use bare field names as columns.
    - Strings: `json_extract_string(payload, '$.field_name')`
@@ -172,8 +283,8 @@ physical columns list. For webhook tables, always use json_extract for field acc
    JOIN bronze.contacts c  -- csv format
      ON json_extract_string(o.payload, '$.customer_email') = c.email
    ```
-5. The `draft_transform` tool validates SQL with EXPLAIN before saving.
-   If it returns an error, fix the SQL and retry — do not save broken transforms.
+5. The `draft_transform` tool validates SQL by executing each SELECT with LIMIT 1
+   before saving. If it returns an error, fix the SQL and retry — do not save broken transforms.
 6. **After debugging SQL interactively with `run_sql`**: the working SQL exists only in
    the conversation, not in the stored transform. You MUST call `update_transform` with
    the verified SQL before telling the user the transform is ready for approval.
@@ -182,16 +293,41 @@ physical columns list. For webhook tables, always use json_extract for field acc
    check `physical_columns` and `payload_keys`, fix the SQL, call `update_transform`,
    then ask the admin to re-approve. Do not ask the admin to retry the same SQL.
 
+## JSON array unnesting (DuckDB syntax)
+
+When a payload field contains a JSON array, `describe_entity` returns `payload_array_fields`
+mapping each array key to a sample of its sub-keys.
+
+**DuckDB-correct pattern — use CROSS JOIN UNNEST with ::JSON[] cast:**
+```sql
+-- Expand products[] from an orders payload: one output row per product per order
+SELECT
+    json_extract_string(o.payload, '$.order_id') AS order_id,
+    json_extract_string(p.elem, '$.productId')   AS product_id,
+    CAST(json_extract(p.elem, '$.quantity') AS INTEGER) AS qty
+FROM bronze.orders o
+CROSS JOIN UNNEST(json_extract(o.payload, '$.products')::JSON[]) AS p(elem);
+```
+
+**Rules:**
+- Use `CROSS JOIN UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem)`
+- The `::JSON[]` cast is REQUIRED — UNNEST needs an array type, not a raw JSON value
+- Access sub-fields from the element: `json_extract_string(t.elem, '$.sub_field')`
+- **NOT supported in DuckDB**: `CROSS JOIN LATERAL`, `json_array_elements`, `json_each`
+  These are Postgres functions that do not exist in DuckDB. If you use them, the SQL will fail.
+- If the payload field might be NULL or not always an array, add a WHERE guard:
+  `WHERE json_extract(payload, '$.array_field') IS NOT NULL`
+
 ## Relationship rules (read carefully)
-- The system prompt always includes the current state of entities, integrations, and transforms.
+- The system prompt always includes the current state of entities, connectors, and transforms.
   Read it before taking any action — do not create duplicates.
-- **Integrations must link to an entity**: always pass `entity_id` when creating an integration.
+- **Connectors must link to an entity**: always pass `entity_id` when creating a connector.
   The entity determines the bronze table name. If no entity exists yet, create one first.
 - **Transforms must reference real tables**: before writing SQL, confirm the source table
   (`source_layer.entity_name`) exists in the catalogue. Never reference a table that isn't listed.
 - **Before draft_transform**: call `list_transforms` — if a transform with the same name or
   purpose exists, call `update_transform` instead. Creating a duplicate will fail.
-- **Before create_integration**: check the integrations listed above — if one already feeds the
+- **Before create_connector**: check the connectors listed above — if one already feeds the
   same entity, tell the user and ask whether they want to create another or reuse the existing one.
 - **Medallion flow**: bronze = raw ingested data. silver = cleaned/typed.
   gold = aggregated/business.
@@ -302,7 +438,8 @@ def _run_tool(
                     "CAST(json_extract(payload, '$.field') AS DOUBLE/TIMESTAMP/etc) for typed values. "
                     "Never reference catalogue field names as direct SQL columns — they do not exist."
                 )
-                # Surface the actual JSON keys inside payload from a real row
+                # Surface the actual JSON keys inside payload from a real row,
+                # and expose nested array structure for UNNEST guidance.
                 try:
                     row = conn.execute(
                         f"SELECT payload FROM {layer}.{name} LIMIT 1"  # noqa: S608
@@ -313,6 +450,19 @@ def _run_tool(
                         )
                         if isinstance(sample, dict):
                             entity["payload_keys"] = list(sample.keys())[:20]
+                            # Detect array-of-objects fields and expose their sub-keys
+                            array_fields: dict[str, list[str]] = {}
+                            for k, v in sample.items():
+                                if isinstance(v, list) and v and isinstance(v[0], dict):
+                                    array_fields[k] = list(v[0].keys())[:10]
+                            if array_fields:
+                                entity["payload_array_fields"] = array_fields
+                                entity["unnest_hint"] = (
+                                    "DuckDB JSON array unnesting — required syntax: "
+                                    "CROSS JOIN UNNEST(json_extract(payload, '$.array_field')::JSON[]) AS t(elem). "
+                                    "Access sub-fields with json_extract_string(t.elem, '$.sub_key'). "
+                                    "NOT supported: CROSS JOIN LATERAL, json_array_elements, json_each."
+                                )
                         elif (
                             isinstance(sample, list)
                             and sample
@@ -459,19 +609,20 @@ def _run_tool(
                 {"error": f"Access denied: role '{role}' cannot ingest data."}
             )
 
-        # Resolve source: prefer integration_id → entity.name (if linked) → integration.name
-        integration_id = tool_input.get("integration_id")
+        # Resolve source: prefer connector_id → entity.name (if linked) → connector.name
+        # Accept both connector_id (new) and integration_id (legacy) for backward compat
+        integration_id = tool_input.get("connector_id") or tool_input.get(
+            "integration_id"
+        )
         if integration_id:
             integration = get_integration(integration_id, tenant_id)
             if not integration:
-                return json.dumps(
-                    {"error": f"Integration '{integration_id}' not found."}
-                )
+                return json.dumps({"error": f"Connector '{integration_id}' not found."})
             if integration.get("connector_type") != "webhook":
                 return json.dumps(
                     {
                         "error": (
-                            f"Integration '{integration['name']}' has connector_type "
+                            f"Connector '{integration['name']}' has connector_type "
                             f"'{integration['connector_type']}', not 'webhook'."
                         )
                     }
@@ -503,11 +654,11 @@ def _run_tool(
         result = land_webhook(source, data, metadata, tenant_id)
         return json.dumps(result)
 
-    # ── list_integrations ────────────────────────────────────────────────────
-    if tool_name == "list_integrations":
+    # ── list_connectors ──────────────────────────────────────────────────────
+    if tool_name == "list_connectors":
         from src.integrations.service import list_integrations
 
-        integrations = list_integrations(tenant_id)
+        connectors = list_integrations(tenant_id)
         summary = [
             {
                 "id": i["id"],
@@ -516,38 +667,122 @@ def _run_tool(
                 "status": i.get("status"),
                 "description": i.get("description", ""),
                 "entity_id": i.get("target_entity_id"),
-                "webhook_endpoint": f"/api/v1/integrations/{i['id']}/webhook"
+                "webhook_endpoint": f"/api/v1/connectors/{i['id']}/webhook"
                 if i.get("connector_type") == "webhook"
                 else None,
-                "batch_endpoint": f"/api/v1/integrations/{i['id']}/batch"
+                "batch_endpoint": f"/api/v1/connectors/{i['id']}/batch"
                 if i.get("connector_type") in ("batch_csv", "batch_json")
                 else None,
-                "trigger_endpoint": f"/api/v1/integrations/{i['id']}/trigger"
+                "trigger_endpoint": f"/api/v1/connectors/{i['id']}/trigger"
                 if i.get("connector_type") == "api_pull"
                 else None,
             }
-            for i in integrations
+            for i in connectors
         ]
         return json.dumps(summary)
 
-    # ── get_integration_runs ─────────────────────────────────────────────────
-    if tool_name == "get_integration_runs":
+    # ── get_connector_runs ───────────────────────────────────────────────────
+    if tool_name == "get_connector_runs":
         from src.integrations.service import list_runs
 
-        integration_id = tool_input.get("integration_id", "")
-        if not integration_id:
-            return json.dumps({"error": "integration_id is required."})
-        runs = list_runs(integration_id, tenant_id, limit=20)
+        connector_id = tool_input.get("connector_id", "")
+        if not connector_id:
+            return json.dumps({"error": "connector_id is required."})
+        runs = list_runs(connector_id, tenant_id, limit=20)
         return json.dumps(runs, default=str)
 
-    # ── create_integration ───────────────────────────────────────────────────
-    if tool_name == "create_integration":
+    # ── discover_api ─────────────────────────────────────────────────────────
+    if tool_name == "discover_api":
+        import ipaddress
+        import socket
+        import urllib.parse
+
+        import httpx
+
+        url = tool_input.get("url", "").strip()
+        if not url:
+            return json.dumps({"error": "url is required"})
+
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return json.dumps({"error": "Only http/https URLs are supported"})
+
+        # SSRF guard: block private/internal addresses
+        hostname = parsed.hostname or ""
+        try:
+            ip_str = socket.gethostbyname(hostname)
+            addr = ipaddress.ip_address(ip_str)
+            if (
+                addr.is_private
+                or addr.is_loopback
+                or addr.is_link_local
+                or addr.is_reserved
+            ):
+                return json.dumps(
+                    {
+                        "error": "Access to private/internal/loopback addresses is not permitted."
+                    }
+                )
+        except socket.gaierror:
+            return json.dumps({"error": f"Could not resolve hostname: {hostname!r}"})
+        except ValueError:
+            pass  # IPv6 etc — proceed optimistically
+
+        method = tool_input.get("method", "GET").upper()
+        headers: dict[str, str] = tool_input.get("headers") or {}
+        body = tool_input.get("body")
+        json_path: str = tool_input.get("json_path") or ""
+
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                if method == "GET":
+                    response = client.get(url, headers=headers)
+                elif method == "POST":
+                    response = client.post(url, headers=headers, json=body)
+                elif method == "PUT":
+                    response = client.put(url, headers=headers, json=body)
+                else:
+                    return json.dumps({"error": f"Unsupported method: {method}"})
+
+                response.raise_for_status()
+                data = response.json()
+
+            # Extract records via dot-notation json_path
+            records: object = data
+            if json_path:
+                for part in json_path.lstrip("$.").split("."):
+                    if isinstance(records, dict):
+                        records = records.get(part, records)
+
+            if isinstance(records, dict):
+                records = [records]
+
+            total = len(records) if isinstance(records, list) else 0
+            sample = records[:5] if isinstance(records, list) else records
+
+            return json.dumps(
+                {
+                    "status_code": response.status_code,
+                    "total_records": total,
+                    "sample_records": sample,
+                },
+                default=str,
+            )
+        except httpx.HTTPStatusError as exc:
+            return json.dumps(
+                {"error": f"HTTP {exc.response.status_code}: {exc.response.text[:200]}"}
+            )
+        except Exception as exc:
+            return json.dumps({"error": str(exc)})
+
+    # ── create_connector ─────────────────────────────────────────────────────
+    if tool_name == "create_connector":
         from src.auth.permissions import Action, Resource, can
         from src.integrations.service import create_integration
 
         if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
             return json.dumps(
-                {"error": f"Access denied: role '{role}' cannot create integrations."}
+                {"error": f"Access denied: role '{role}' cannot create connectors."}
             )
         result = create_integration(tool_input, tenant_id)
         return json.dumps(result, default=str)
@@ -575,26 +810,16 @@ def _run_tool(
     if tool_name == "draft_transform":
         from src.transforms.service import create_transform
 
-        sql = (tool_input.get("transform_sql") or "").strip()
+        sql = (tool_input.get("sql") or tool_input.get("transform_sql") or "").strip()
         if sql:
-            # Dry-run validation: catch syntax and missing column errors before saving.
-            # Wrap in a subquery so EXPLAIN works for both SELECT and CREATE TABLE AS SELECT.
-            explain_sql = sql
-            if re.match(r"(?i)\s*CREATE\s+", sql):
-                # Strip the CREATE TABLE ... AS prefix to get the SELECT for EXPLAIN
-                select_match = re.search(r"(?i)\bAS\s+(SELECT\b.*)", sql, re.DOTALL)
-                explain_sql = select_match.group(1) if select_match else sql
-            try:
-                conn.execute(f"EXPLAIN {explain_sql}")
-            except Exception as exc:
+            # Dry-run: execute each SELECT block with LIMIT 1 to catch runtime errors
+            # (type mismatches, UNNEST failures, bad JSON casts) that EXPLAIN misses.
+            err = _validate_sql_dry_run(sql, conn)
+            if err is not None:
+                hint = _sql_error_hint(err)
                 return json.dumps(
                     {
-                        "error": (
-                            f"SQL validation failed before saving: {exc}. "
-                            "Check column names match the physical columns for each table. "
-                            "For webhook/api_pull bronze tables use json_extract_string(payload, '$.field') "
-                            "— not bare field names. Call describe_entity to see physical_columns and payload_keys."
-                        ),
+                        "error": (f"SQL validation failed before saving: {err}.{hint}"),
                         "sql": sql,
                     }
                 )
@@ -609,6 +834,22 @@ def _run_tool(
         transform_id = tool_input.pop("transform_id", None)
         if not transform_id:
             return json.dumps({"error": "transform_id is required."})
+
+        # Validate new SQL before saving, same as draft_transform
+        new_sql = (
+            tool_input.get("transform_sql") or tool_input.get("sql") or ""
+        ).strip()
+        if new_sql:
+            err = _validate_sql_dry_run(new_sql, conn)
+            if err is not None:
+                hint = _sql_error_hint(err)
+                return json.dumps(
+                    {
+                        "error": f"SQL validation failed — transform not updated: {err}.{hint}",
+                        "sql": new_sql,
+                    }
+                )
+
         result = update_transform(transform_id, tool_input, tenant_id)
         if not result:
             return json.dumps({"error": f"Transform '{transform_id}' not found."})

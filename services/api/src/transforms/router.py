@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 
+from src.audit.log import write_audit
 from src.auth.permissions import Action, Resource, require_permission
 from src.transforms import service
 from src.transforms.models import ApprovalAction, TransformCreate, TransformUpdate
@@ -44,7 +45,16 @@ async def create_transform(body: TransformCreate, request: Request) -> dict[str,
     user = _user(request)
     require_permission(user, Resource.TRANSFORM, Action.WRITE)
     created_by = user.get("user_id", "unknown")
-    return service.create_transform(body.model_dump(), _tenant(request), created_by)
+    result = service.create_transform(body.model_dump(), _tenant(request), created_by)
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=created_by,
+        action="create",
+        resource_type="transform",
+        resource_id=result.get("id"),
+        detail={"name": result.get("name")},
+    )
+    return result
 
 
 @router.patch("/{transform_id}")
@@ -61,13 +71,29 @@ async def update_transform(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not result:
         raise HTTPException(status_code=404, detail="Transform not found")
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="update",
+        resource_type="transform",
+        resource_id=str(transform_id),
+        detail={"fields": list(body.model_dump(exclude_none=True).keys())},
+    )
     return result
 
 
 @router.delete("/{transform_id}", status_code=204)
 async def delete_transform(transform_id: UUID, request: Request) -> None:
-    require_permission(_user(request), Resource.TRANSFORM, Action.WRITE)
+    user = _user(request)
+    require_permission(user, Resource.TRANSFORM, Action.WRITE)
     service.delete_transform(str(transform_id), _tenant(request))
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="delete",
+        resource_type="transform",
+        resource_id=str(transform_id),
+    )
 
 
 @router.post("/{transform_id}/approval")
@@ -82,6 +108,14 @@ async def approve_transform(
     )
     if not result:
         raise HTTPException(status_code=404, detail="Transform not found")
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action=body.action,
+        resource_type="transform",
+        resource_id=str(transform_id),
+        detail={"name": result.get("name")},
+    )
     return result
 
 
@@ -90,9 +124,21 @@ async def execute_transform(transform_id: UUID, request: Request) -> dict[str, A
     user = _user(request)
     require_permission(user, Resource.TRANSFORM, Action.APPROVE)
     try:
-        return service.execute_transform(str(transform_id), _tenant(request))
+        result = service.execute_transform(str(transform_id), _tenant(request))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="execute",
+        resource_type="transform",
+        resource_id=str(transform_id),
+        detail={
+            "rows": result.get("rows_affected"),
+            "errors": result.get("errors", []),
+        },
+    )
+    return result
 
 
 @router.get("/lineage/graph")

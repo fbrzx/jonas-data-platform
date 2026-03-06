@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
+from src.audit.log import write_audit
 from src.auth.permissions import Action, Resource, require_permission
 from src.integrations import ingest, service
 from src.integrations.models import (
@@ -75,27 +76,61 @@ async def list_integrations(request: Request) -> list[dict[str, Any]]:
 async def create_integration(
     body: IntegrationCreate, request: Request
 ) -> dict[str, Any]:
-    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
-    return service.create_integration(body.model_dump(), _tenant(request))
+    user = _user(request)
+    require_permission(user, Resource.INTEGRATION, Action.WRITE)
+    result = service.create_integration(body.model_dump(), _tenant(request))
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="create",
+        resource_type="connector",
+        resource_id=result.get("id"),
+        detail={"name": result.get("name"), "type": result.get("connector_type")},
+    )
+    return result
 
 
 @router.patch("/{integration_id}")
 async def update_integration(
     integration_id: str, body: IntegrationUpdate, request: Request
 ) -> dict[str, Any]:
-    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
+    user = _user(request)
+    require_permission(user, Resource.INTEGRATION, Action.WRITE)
+    tenant_id = _tenant(request)
     result = service.update_integration(
-        integration_id, body.model_dump(exclude_none=True), _tenant(request)
+        integration_id, body.model_dump(exclude_none=True), tenant_id
     )
     if not result:
         raise HTTPException(status_code=404, detail="Integration not found")
+    # Sync cron schedule with the scheduler when explicitly provided
+    if body.cron_schedule is not None or "cron_schedule" in body.model_fields_set:
+        from src.scheduler import scheduler as job_scheduler
+
+        job_scheduler.reload_connector(
+            integration_id, result.get("cron_schedule"), tenant_id
+        )
+    write_audit(
+        tenant_id=tenant_id,
+        user_id=user.get("user_id"),
+        action="update",
+        resource_type="connector",
+        resource_id=integration_id,
+    )
     return result
 
 
 @router.delete("/{integration_id}", status_code=204)
 async def delete_integration(integration_id: str, request: Request) -> None:
-    require_permission(_user(request), Resource.INTEGRATION, Action.WRITE)
+    user = _user(request)
+    require_permission(user, Resource.INTEGRATION, Action.WRITE)
     service.delete_integration(integration_id, _tenant(request))
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="delete",
+        resource_type="connector",
+        resource_id=integration_id,
+    )
 
 
 @router.get("/{integration_id}/runs")
@@ -140,7 +175,16 @@ async def trigger_api_pull(integration_id: str, request: Request) -> dict[str, A
     else:
         source = str(integration["name"])
 
-    return ingest.land_api_pull(url, headers, source, tenant_id, integration_id)
+    result = ingest.land_api_pull(url, headers, source, tenant_id, integration_id)
+    write_audit(
+        tenant_id=tenant_id,
+        user_id=_user(request).get("user_id"),
+        action="trigger",
+        resource_type="connector",
+        resource_id=integration_id,
+        detail={"rows_landed": result.get("rows_landed")},
+    )
+    return result
 
 
 @router.post("/ingest/webhook", response_model=BatchIngestResponse)

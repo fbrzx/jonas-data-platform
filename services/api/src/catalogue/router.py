@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 
+from src.audit.log import write_audit
 from src.auth.permissions import Action, Resource, require_permission
 from src.catalogue import service
 from src.catalogue.models import EntityCreate, EntityUpdate
@@ -45,7 +46,16 @@ async def get_entity(entity_id: UUID, request: Request) -> dict[str, Any]:
 async def create_entity(body: EntityCreate, request: Request) -> dict[str, Any]:
     user = _user(request)
     require_permission(user, Resource.CATALOGUE, Action.WRITE)
-    return service.create_entity(body.model_dump(), _tenant(request))
+    result = service.create_entity(body.model_dump(), _tenant(request))
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="create",
+        resource_type="entity",
+        resource_id=result.get("id"),
+        detail={"name": result.get("name"), "layer": result.get("layer")},
+    )
+    return result
 
 
 @router.patch("/entities/{entity_id}")
@@ -59,6 +69,13 @@ async def update_entity(
     )
     if not result:
         raise HTTPException(status_code=404, detail="Entity not found")
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="update",
+        resource_type="entity",
+        resource_id=str(entity_id),
+    )
     return result
 
 
@@ -125,3 +142,10 @@ async def delete_entity(entity_id: UUID, request: Request) -> None:
     require_permission(user, Resource.CATALOGUE, Action.WRITE)
     if not service.delete_entity(str(entity_id), _tenant(request)):
         raise HTTPException(status_code=404, detail="Entity not found")
+    write_audit(
+        tenant_id=_tenant(request),
+        user_id=user.get("user_id"),
+        action="delete",
+        resource_type="entity",
+        resource_id=str(entity_id),
+    )

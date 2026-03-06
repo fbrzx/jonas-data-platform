@@ -1,31 +1,53 @@
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 const TOKEN_KEY = 'jonas_token'
-const DEFAULT_TOKEN = 'admin-token'
+const REFRESH_KEY = 'jonas_refresh_token'
 const API_BASE_PATH = '/api/v1'
 
+export function getToken(): string {
+  return localStorage.getItem(TOKEN_KEY) ?? ''
+}
+
+export function getRefreshToken(): string {
+  return localStorage.getItem(REFRESH_KEY) ?? ''
+}
+
+export function setToken(access: string, refresh?: string): void {
+  localStorage.setItem(TOKEN_KEY, access)
+  if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+  window.dispatchEvent(new Event('jonas_token_changed'))
+}
+
+export function clearTokens(): void {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
+  window.dispatchEvent(new Event('jonas_token_changed'))
+}
+
+export function isLoggedIn(): boolean {
+  return !!localStorage.getItem(TOKEN_KEY)
+}
+
+/** Decode role from JWT payload (base64url). Falls back to 'viewer'. */
+export function getRoleFromToken(token: string): string {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return payload.role ?? 'viewer'
+  } catch {
+    // demo tokens
+    const map: Record<string, string> = {
+      'admin-token': 'admin', 'analyst-token': 'analyst', 'viewer-token': 'viewer',
+    }
+    return map[token] ?? 'viewer'
+  }
+}
+
+// Keep for backward compat
 export const DEMO_TOKENS = [
   { label: 'Admin',   value: 'admin-token'   },
   { label: 'Analyst', value: 'analyst-token' },
   { label: 'Viewer',  value: 'viewer-token'  },
 ]
-
-export function getToken(): string {
-  return localStorage.getItem(TOKEN_KEY) ?? DEFAULT_TOKEN
-}
-
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
-}
-
-export function getRoleFromToken(token: string): string {
-  const map: Record<string, string> = {
-    'admin-token':   'admin',
-    'analyst-token': 'analyst',
-    'viewer-token':  'viewer',
-  }
-  return map[token] ?? 'viewer'
-}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,6 +93,7 @@ export interface Integration {
   status: string
   config?: string
   target_entity_id?: string | null
+  cron_schedule?: string | null
   created_at: string
   updated_at: string
 }
@@ -91,6 +114,32 @@ export interface IntegrationUpdate {
   config?: Record<string, unknown>
   tags?: string[]
   entity_id?: string | null
+  cron_schedule?: string | null
+}
+
+export interface AuditJob {
+  id: string
+  job_type: 'connector' | 'transform'
+  job_name: string
+  sub_type: string
+  status: string
+  started_at: string
+  completed_at?: string
+  records_in: number
+  records_out: number
+  records_rejected: number
+  error_detail?: string | null
+}
+
+export interface AuditLog {
+  id: string
+  tenant_id: string
+  user_id: string
+  action: string
+  resource_type: string
+  resource_id?: string
+  detail?: string
+  created_at: string
 }
 
 export interface TransformCreate {
@@ -188,9 +237,52 @@ export interface ChatMessage {
   content: string
 }
 
+export interface TenantConfig {
+  llm_provider: string
+  llm_model: string
+  pii_masking_enabled: boolean
+  data_retention_days: number
+  max_connector_runs_per_day: number
+}
+
+export interface TenantUser {
+  id: string
+  email: string
+  display_name: string
+  role: string
+  granted_at: string
+  revoked_at: string | null
+}
+
+export interface TenantUserCreate {
+  email: string
+  display_name: string
+  password: string
+  role: string
+}
+
 // ── Fetch wrapper ─────────────────────────────────────────────────────────────
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+let _refreshing: Promise<void> | null = null
+
+async function _tryRefresh(): Promise<void> {
+  const refresh = getRefreshToken()
+  if (!refresh) { clearTokens(); return }
+  try {
+    const res = await fetch(`${API_BASE_PATH}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refresh }),
+    })
+    if (!res.ok) { clearTokens(); return }
+    const data = await res.json() as { access_token: string; refresh_token: string }
+    setToken(data.access_token, data.refresh_token)
+  } catch {
+    clearTokens()
+  }
+}
+
+async function request<T>(path: string, init: RequestInit = {}, _retry = true): Promise<T> {
   const res = await fetch(`${API_BASE_PATH}${path}`, {
     ...init,
     headers: {
@@ -199,6 +291,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...(init.headers ?? {}),
     },
   })
+  if (res.status === 401 && _retry) {
+    if (!_refreshing) _refreshing = _tryRefresh().finally(() => { _refreshing = null })
+    await _refreshing
+    if (!getToken()) throw new Error('Session expired — please log in again')
+    return request<T>(path, init, false)
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     throw new Error(text || `HTTP ${res.status}`)
@@ -224,6 +322,18 @@ async function upload<T>(path: string, file: File): Promise<T> {
 // ── API surface ───────────────────────────────────────────────────────────────
 
 export const api = {
+  auth: {
+    login: (email: string, password: string) =>
+      request<{ access_token: string; refresh_token: string; token_type: string }>(
+        '/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }
+      ),
+    refresh: (refresh_token: string) =>
+      request<{ access_token: string; refresh_token: string }>('/auth/refresh', {
+        method: 'POST', body: JSON.stringify({ refresh_token }),
+      }),
+    me: () => request<{ user_id: string; email: string; tenant_id: string; role: string }>('/auth/me'),
+    logout: () => { clearTokens() },
+  },
   catalogue: {
     list: () => request<Entity[]>('/catalogue/entities'),
     get: (id: string) => request<Entity>(`/catalogue/entities/${id}`),
@@ -240,25 +350,46 @@ export const api = {
       request<void>(`/catalogue/entities/${entityId}/fields/${fieldId}`, { method: 'DELETE' }),
   },
 
-  integrations: {
-    list: () => request<Integration[]>('/integrations'),
+  connectors: {
+    list: () => request<Integration[]>('/connectors'),
     create: (body: IntegrationCreate) =>
-      request<Integration>('/integrations', { method: 'POST', body: JSON.stringify(body) }),
+      request<Integration>('/connectors', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: IntegrationUpdate) =>
-      request<Integration>(`/integrations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+      request<Integration>(`/connectors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) =>
-      request<void>(`/integrations/${id}`, { method: 'DELETE' }),
+      request<void>(`/connectors/${id}`, { method: 'DELETE' }),
     sendWebhook: (id: string, data: unknown, metadata?: Record<string, unknown>) =>
-      request<IngestResponse>(`/integrations/${id}/webhook`, {
+      request<IngestResponse>(`/connectors/${id}/webhook`, {
         method: 'POST',
         body: JSON.stringify({ data, metadata: metadata ?? {} }),
       }),
     uploadBatch: (id: string, file: File) =>
-      upload<IngestResponse>(`/integrations/${id}/batch`, file),
+      upload<IngestResponse>(`/connectors/${id}/batch`, file),
     getRuns: (id: string) =>
-      request<IntegrationRun[]>(`/integrations/${id}/runs`),
+      request<IntegrationRun[]>(`/connectors/${id}/runs`),
     trigger: (id: string) =>
-      request<IngestResponse>(`/integrations/${id}/trigger`, { method: 'POST' }),
+      request<IngestResponse>(`/connectors/${id}/trigger`, { method: 'POST' }),
+  },
+  // Legacy alias — keep IntegrationsPage working during transition
+  integrations: {
+    list: () => request<Integration[]>('/connectors'),
+    create: (body: IntegrationCreate) =>
+      request<Integration>('/connectors', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: IntegrationUpdate) =>
+      request<Integration>(`/connectors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      request<void>(`/connectors/${id}`, { method: 'DELETE' }),
+    sendWebhook: (id: string, data: unknown, metadata?: Record<string, unknown>) =>
+      request<IngestResponse>(`/connectors/${id}/webhook`, {
+        method: 'POST',
+        body: JSON.stringify({ data, metadata: metadata ?? {} }),
+      }),
+    uploadBatch: (id: string, file: File) =>
+      upload<IngestResponse>(`/connectors/${id}/batch`, file),
+    getRuns: (id: string) =>
+      request<IntegrationRun[]>(`/connectors/${id}/runs`),
+    trigger: (id: string) =>
+      request<IngestResponse>(`/connectors/${id}/trigger`, { method: 'POST' }),
   },
 
   transforms: {
@@ -276,6 +407,37 @@ export const api = {
     execute: (id: string) =>
       request<ExecuteResult>(`/transforms/${id}/execute`, { method: 'POST' }),
     lineage: () => request<{ nodes: LineageNode[]; edges: LineageEdge[] }>('/transforms/lineage/graph'),
+  },
+
+  audit: {
+    jobs: (page = 1, pageSize = 50) =>
+      request<{ jobs: AuditJob[]; total: number; page: number; page_size: number }>(
+        `/audit/jobs?page=${page}&page_size=${pageSize}`
+      ),
+    logs: (page = 1, pageSize = 50, action?: string, entityType?: string) => {
+      const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+      if (action) params.set('action', action)
+      if (entityType) params.set('entity_type', entityType)
+      return request<{ logs: AuditLog[]; total: number; page: number; page_size: number }>(
+        `/audit/logs?${params}`
+      )
+    },
+  },
+
+  tenant: {
+    getConfig: () => request<TenantConfig>('/tenant/config'),
+    updateConfig: (body: Partial<TenantConfig>) =>
+      request<TenantConfig>('/tenant/config', { method: 'PATCH', body: JSON.stringify(body) }),
+    listUsers: () => request<TenantUser[]>('/tenant/users'),
+    createUser: (body: TenantUserCreate) =>
+      request<TenantUser>('/tenant/users', { method: 'POST', body: JSON.stringify(body) }),
+    changeRole: (userId: string, role: string) =>
+      request<{ user_id: string; role: string }>(`/tenant/users/${userId}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      }),
+    revokeUser: (userId: string) =>
+      request<void>(`/tenant/users/${userId}`, { method: 'DELETE' }),
   },
 
   agent: {

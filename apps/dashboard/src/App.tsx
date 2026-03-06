@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import CataloguePage from './pages/CataloguePage'
-import IntegrationsPage from './pages/IntegrationsPage'
+import ConnectorsPage from './pages/ConnectorsPage'
 import TransformsPage from './pages/TransformsPage'
 import ChatPage from './pages/ChatPage'
 import LineagePage from './pages/LineagePage'
 import DashboardPage from './pages/DashboardPage'
+import AuditPage from './pages/AuditPage'
+import LoginPage from './pages/LoginPage'
+import TenantConfigPage from './pages/TenantConfigPage'
+import TenantUsersPage from './pages/TenantUsersPage'
+import { api, getRoleFromToken, getToken, isLoggedIn } from './lib/api'
 import type { ChatMessage } from './lib/api'
 
 const navItems = [
-  { to: '/',             label: 'Dashboard',    glyph: '◉' },
-  { to: '/chat',         label: 'Chat',         glyph: '◈' },
-  { to: '/catalogue',   label: 'Catalogue',    glyph: '◫' },
-  { to: '/transforms',  label: 'Transforms',   glyph: '⟳' },
-  { to: '/integrations',label: 'Integrations', glyph: '⌥' },
-  { to: '/lineage',     label: 'Lineage',      glyph: '⬡' },
+  { to: '/',            label: 'Dashboard',  glyph: '◉', adminOnly: false },
+  { to: '/chat',        label: 'Chat',       glyph: '◈', adminOnly: false },
+  { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false },
+  { to: '/transforms',  label: 'Transforms', glyph: '⟳', adminOnly: false },
+  { to: '/connectors',  label: 'Connectors', glyph: '⌥', adminOnly: false },
+  { to: '/lineage',     label: 'Lineage',    glyph: '⬡', adminOnly: false },
+  { to: '/audit',       label: 'Audit',      glyph: '◎', adminOnly: false },
+  { to: '/team',        label: 'Team',       glyph: '⊛', adminOnly: true  },
+  { to: '/settings',   label: 'Settings',   glyph: '⊙', adminOnly: true  },
 ]
 
 function TokenWatcher() {
@@ -28,7 +36,28 @@ function TokenWatcher() {
   return null
 }
 
+function LogoutButton() {
+  const navigate = useNavigate()
+  function handleLogout() {
+    api.auth.logout()
+    navigate('/login', { replace: true })
+  }
+  return (
+    <button
+      onClick={handleLogout}
+      className="font-mono text-[10px] text-j-dim hover:text-j-red transition-colors"
+      title="Sign out"
+    >
+      sign out
+    </button>
+  )
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
+  const token = getToken()
+  const role = getRoleFromToken(token)
+  const isAdmin = role === 'admin'
+
   return (
     <div className="flex h-screen bg-j-bg overflow-hidden">
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
@@ -48,7 +77,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav items */}
         <ul className="flex-1 py-2">
-          {navItems.map(({ to, label, glyph }) => (
+          {navItems.filter(({ adminOnly }) => !adminOnly || isAdmin).map(({ to, label, glyph }) => (
             <li key={to}>
               <NavLink
                 to={to}
@@ -69,14 +98,17 @@ function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </ul>
 
-        {/* Footer status */}
-        <div className="px-5 py-4 border-t border-j-border">
+        {/* Footer — user + sign out */}
+        <div className="px-5 py-4 border-t border-j-border space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-j-green animate-pulse-slow" />
             <span className="font-mono text-[10px] text-j-dim">api · localhost:8000</span>
           </div>
-          <div className="font-mono text-[10px] mt-1" style={{ color: 'var(--border-bright)' }}>
-            tenant / acme · v0.1.0
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px]" style={{ color: 'var(--border-bright)' }}>
+              {role} · acme
+            </span>
+            <LogoutButton />
           </div>
         </div>
       </nav>
@@ -87,6 +119,13 @@ function Layout({ children }: { children: React.ReactNode }) {
   )
 }
 
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  if (!isLoggedIn()) {
+    return <Navigate to="/login" replace />
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
@@ -95,27 +134,33 @@ export default function App() {
     <BrowserRouter>
       <TokenWatcher />
       <Routes>
+        <Route path="/login" element={<LoginPage />} />
         <Route
           path="/*"
           element={
-            <Layout>
-              <Routes>
-                <Route index             element={<DashboardPage />} />
-                <Route path="chat"         element={
-                  <ChatPage
-                    messages={chatMessages}
-                    setMessages={setChatMessages}
-                    input={chatInput}
-                    setInput={setChatInput}
-                  />
-                } />
-                <Route path="catalogue"   element={<CataloguePage />} />
-                <Route path="transforms"  element={<TransformsPage />} />
-                <Route path="integrations" element={<IntegrationsPage />} />
-                <Route path="lineage"     element={<LineagePage />} />
-                <Route path="*"           element={<DashboardPage />} />
-              </Routes>
-            </Layout>
+            <RequireAuth>
+              <Layout>
+                <Routes>
+                  <Route index             element={<DashboardPage />} />
+                  <Route path="chat"       element={
+                    <ChatPage
+                      messages={chatMessages}
+                      setMessages={setChatMessages}
+                      input={chatInput}
+                      setInput={setChatInput}
+                    />
+                  } />
+                  <Route path="catalogue"  element={<CataloguePage />} />
+                  <Route path="transforms" element={<TransformsPage />} />
+                  <Route path="connectors" element={<ConnectorsPage />} />
+                  <Route path="lineage"    element={<LineagePage />} />
+                  <Route path="audit"      element={<AuditPage />} />
+                  <Route path="team"       element={<TenantUsersPage />} />
+                  <Route path="settings"   element={<TenantConfigPage />} />
+                  <Route path="*"          element={<DashboardPage />} />
+                </Routes>
+              </Layout>
+            </RequireAuth>
           }
         />
       </Routes>

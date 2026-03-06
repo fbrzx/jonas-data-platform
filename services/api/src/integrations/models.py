@@ -32,6 +32,7 @@ class IntegrationUpdate(BaseModel):
     config: dict[str, Any] | None = None
     tags: list[str] | None = None
     entity_id: str | None = None
+    cron_schedule: str | None = None
     # connector_type deliberately excluded — immutable
 
 

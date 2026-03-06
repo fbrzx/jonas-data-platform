@@ -11,13 +11,17 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.agent.router import router as agent_router
+from src.audit.router import router as audit_router
 from src.auth.middleware import AuthMiddleware
 from src.auth.openapi import docs_bearer_auth
+from src.auth.router import router as auth_router
 from src.catalogue.router import router as catalogue_router
 from src.config import settings
 from src.db.connection import close_connection, init_connection
 from src.db.init import bootstrap
 from src.integrations.router import router as integrations_router
+from src.scheduler import scheduler as job_scheduler
+from src.tenant.router import router as tenant_router
 from src.transforms.router import router as transforms_router
 
 logger = logging.getLogger(__name__)
@@ -43,7 +47,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
     await init_connection()
     bootstrap()
+    job_scheduler.start(app)
     yield
+    job_scheduler.stop()
     await close_connection()
 
 
@@ -73,6 +79,13 @@ app.add_middleware(
 
 app.add_middleware(AuthMiddleware)
 
+# Auth router has no docs_bearer_auth dependency — it's the login endpoint itself
+app.include_router(
+    auth_router,
+    prefix="/api/v1/auth",
+    tags=["auth"],
+)
+
 app.include_router(
     catalogue_router,
     prefix="/api/v1/catalogue",
@@ -81,8 +94,8 @@ app.include_router(
 )
 app.include_router(
     integrations_router,
-    prefix="/api/v1/integrations",
-    tags=["integrations"],
+    prefix="/api/v1/connectors",
+    tags=["connectors"],
     dependencies=[Depends(docs_bearer_auth)],
 )
 app.include_router(
@@ -95,6 +108,18 @@ app.include_router(
     agent_router,
     prefix="/api/v1/agent",
     tags=["agent"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    audit_router,
+    prefix="/api/v1/audit",
+    tags=["audit"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    tenant_router,
+    prefix="/api/v1/tenant",
+    tags=["tenant"],
     dependencies=[Depends(docs_bearer_auth)],
 )
 
