@@ -1,67 +1,68 @@
-"""DuckDB connection management.
+"""DuckDB connection management — now backed by StorageBackend implementations.
 
-Priority:
-  1. MOTHERDUCK_TOKEN set → connect to MotherDuck ("md:")
-  2. DUCKDB_PATH set      → connect to local file (persisted)
-  3. fallback             → in-memory (tests / CI)
+Priority (auto-detected from settings):
+  1. MOTHERDUCK_TOKEN set            → MotherDuckBackend
+  2. DUCKDB_PATH set                 → LocalDuckDBBackend (file)
+  3. fallback                        → LocalDuckDBBackend (":memory:", tests/CI)
+
+Backward compatibility
+----------------------
+``get_conn()`` is preserved for all existing call sites — it delegates to
+``get_backend().conn`` so nothing breaks.  New code should prefer
+``get_backend()`` and its higher-level helpers (``execute``, ``fetch``, etc.).
 """
 
+from __future__ import annotations
+
 import logging
-import os
-import pathlib
 
 import duckdb
 
 from src.config import settings
+from src.db.backend import StorageBackend
+from src.db.backends import LocalDuckDBBackend, MotherDuckBackend
 
 _log = logging.getLogger("db.connection")
-_conn: duckdb.DuckDBPyConnection | None = None
+_backend: StorageBackend | None = None
 
 
 async def init_connection() -> None:
-    """Open the DuckDB connection on startup."""
-    global _conn
+    """Instantiate and open the active StorageBackend."""
+    global _backend
     if settings.motherduck_token:
-        os.environ.setdefault("MOTHERDUCK_TOKEN", settings.motherduck_token)
-        _conn = duckdb.connect("md:")
-    elif settings.duckdb_path:
-        db_path = pathlib.Path(settings.duckdb_path)
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            _conn = duckdb.connect(str(db_path))
-        except duckdb.InternalException as exc:
-            # Corrupted WAL — back it up (for manual recovery) and retry.
-            # Data in the WAL that wasn't checkpointed will be lost.
-            wal_path = pathlib.Path(str(db_path) + ".wal")
-            if wal_path.exists():
-                backup = wal_path.with_suffix(".wal.corrupt")
-                _log.critical(
-                    "DuckDB WAL replay failed: %s. "
-                    "Backing up WAL to %s and retrying. "
-                    "Un-checkpointed data may be lost — inspect the backup.",
-                    exc,
-                    backup,
-                )
-                wal_path.rename(backup)
-                _conn = duckdb.connect(str(db_path))
-            else:
-                raise
+        db_per_tenant = getattr(settings, "motherduck_db_per_tenant", False)
+        _backend = MotherDuckBackend(
+            token=settings.motherduck_token,
+            db_per_tenant=db_per_tenant,
+        )
     else:
-        _conn = duckdb.connect(":memory:")
+        path = settings.duckdb_path or ":memory:"
+        _backend = LocalDuckDBBackend(path=path)
+
+    await _backend.open()
 
 
 async def close_connection() -> None:
-    """Close the connection on shutdown."""
-    global _conn
-    if _conn is not None:
-        _conn.close()
-        _conn = None
+    """Close the active backend on shutdown."""
+    global _backend
+    if _backend is not None:
+        await _backend.close()
+        _backend = None
+
+
+def get_backend() -> StorageBackend:
+    """Return the active StorageBackend.  Raises if not yet initialised."""
+    if _backend is None:
+        raise RuntimeError(
+            "Storage backend not initialised. Call init_connection() first."
+        )
+    return _backend
 
 
 def get_conn() -> duckdb.DuckDBPyConnection:
-    """Return the active connection, raising if not initialised."""
-    if _conn is None:
-        raise RuntimeError(
-            "Database connection not initialised. Call init_connection() first."
-        )
-    return _conn
+    """Return the underlying DuckDB connection (backward-compat shim).
+
+    Prefer ``get_backend()`` for new code — this exists solely so the ~18
+    existing call sites continue to work without modification.
+    """
+    return get_backend().conn

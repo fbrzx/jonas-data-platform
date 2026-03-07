@@ -5,21 +5,25 @@ even when both share the same DuckDB instance.  Tests exercise the
 service layer directly (no HTTP) so they run fast without a full server.
 """
 
-import duckdb
+import asyncio
+
 import pytest
 
 from src.db import connection as db
+from src.db.backends.local import LocalDuckDBBackend
 from src.db.init import bootstrap
 
 
 @pytest.fixture(autouse=True)
 def _isolated_db() -> None:
     """Fresh in-memory DuckDB + full bootstrap for each test."""
-    db._conn = duckdb.connect(":memory:")
+    backend = LocalDuckDBBackend(":memory:")
+    asyncio.get_event_loop().run_until_complete(backend.open())
+    db._backend = backend
     bootstrap()
     yield
-    db._conn.close()
-    db._conn = None
+    asyncio.get_event_loop().run_until_complete(backend.close())
+    db._backend = None
 
 
 # ── Catalogue isolation ────────────────────────────────────────────────────────

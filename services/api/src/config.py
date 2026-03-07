@@ -17,9 +17,22 @@ class Settings(BaseSettings):
     # DuckDB — local file path; set MOTHERDUCK_TOKEN to use MotherDuck instead
     duckdb_path: str = "data/db/jonas.duckdb"
     motherduck_token: str = ""
+    # Set to true when MOTHERDUCK_TOKEN is set to give each tenant its own MD database.
+    # Requires new deployments — migrating from schema-per-tenant needs a data migration.
+    motherduck_db_per_tenant: bool = False
 
-    # Parquet storage root (local filesystem or future cloud path)
+    # Parquet storage root.
+    # Local:  "data/parquet"  (default)
+    # S3:     "s3://my-bucket/jonas"  (requires S3_ACCESS_KEY + S3_SECRET_KEY)
+    # GCS:    "gs://my-bucket/jonas"  (requires GCS credentials in env)
     parquet_root: str = "data/parquet"
+
+    # S3 / MinIO credentials for cloud parquet storage.
+    # Leave empty to use local filesystem parquet.
+    s3_endpoint: str = ""  # e.g. "http://localhost:9000" for MinIO; empty = AWS
+    s3_region: str = "us-east-1"
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
 
     # Observable Framework dashboard output root
     dashboards_root: str = "data/dashboards"

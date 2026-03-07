@@ -1,9 +1,11 @@
 """Regression tests for transform schema bootstrap behavior."""
 
-import duckdb
+import asyncio
+
 import pytest
 
 from src.db import connection as db
+from src.db.backends.local import LocalDuckDBBackend
 from src.db.init import bootstrap
 from src.transforms import service
 
@@ -11,11 +13,13 @@ from src.transforms import service
 @pytest.fixture(autouse=True)
 def _init_db() -> None:
     """Use a clean in-memory DuckDB and run DDL bootstrap for each test."""
-    db._conn = duckdb.connect(":memory:")
+    backend = LocalDuckDBBackend(":memory:")
+    asyncio.get_event_loop().run_until_complete(backend.open())
+    db._backend = backend
     bootstrap()
     yield
-    db._conn.close()
-    db._conn = None
+    asyncio.get_event_loop().run_until_complete(backend.close())
+    db._backend = None
 
 
 def test_execute_transform_recreates_missing_target_schema() -> None:
