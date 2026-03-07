@@ -187,3 +187,62 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+def build_catalogue_context_compact(tenant_id: str, role: str) -> str:
+    """Return a minimal catalogue summary for small LLMs.
+
+    One line per entity, one line per connector — no SQL examples, no payload
+    introspection, no transform SQL previews.  Keeps the prompt short so the
+    model focuses on tool-use instead of regurgitating instructions.
+    """
+    from src.catalogue.service import get_accessible_entities
+
+    entities = get_accessible_entities(tenant_id, role)
+    conn = get_conn()
+    lines: list[str] = []
+
+    # Entities — one line each
+    if not entities:
+        lines.append("## Data: (none yet)")
+    else:
+        lines.append("## Data")
+        for e in entities:
+            layer = e.get("layer", "?")
+            name = e.get("name", "?")
+            eid = e["id"]
+            desc = e.get("description", "")
+            suffix = f" — {desc}" if desc else ""
+            lines.append(f"- {layer}.{name} (id: {eid}){suffix}")
+
+    # Connectors — one line each
+    try:
+        rows = conn.execute(
+            "SELECT id, name, connector_type, status "
+            "FROM integrations.connector WHERE tenant_id = ?",
+            [tenant_id],
+        ).fetchall()
+    except Exception:
+        rows = []
+
+    if rows:
+        lines.append("\n## Connectors")
+        for r in rows:
+            lines.append(f"- {r[1]} (id: {r[0]}, type: {r[2]}, status: {r[3]})")
+
+    # Transforms — one line each
+    try:
+        rows = conn.execute(
+            "SELECT id, name, source_layer, target_layer, status "
+            "FROM transforms.transform WHERE tenant_id = ?",
+            [tenant_id],
+        ).fetchall()
+    except Exception:
+        rows = []
+
+    if rows:
+        lines.append("\n## Transforms")
+        for r in rows:
+            lines.append(f"- {r[1]} (id: {r[0]}, {r[2]}->{r[3]}, status: {r[4]})")
+
+    return "\n".join(lines)

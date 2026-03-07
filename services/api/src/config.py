@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     llm_provider: str = "ollama"
     llm_model: str = "llama3.2"
 
+    # LLM tier: "small" uses a compact system prompt (for <3B models),
+    # "large" uses the full prompt. Auto-detected from model name if empty.
+    llm_tier: str = ""
+
     # OpenAI
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"

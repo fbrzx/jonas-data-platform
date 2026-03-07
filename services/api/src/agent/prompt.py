@@ -2,10 +2,45 @@
 
 from __future__ import annotations
 
+import re
+
 _MAX_TOOL_RESULT_CHARS = 4000
+
+_SMALL_THRESHOLD_B = 3.0
+
+
+def _detect_tier() -> str:
+    """Detect whether the configured model is small or large."""
+    from src.config import settings
+
+    tier = settings.llm_tier.strip().lower()
+    if tier in ("small", "large"):
+        return tier
+
+    model = settings.llm_model.lower()
+    # Look for parameter count in model name
+    m = re.search(r"(\d+\.?\d*)\s*[bB]", model)
+    if m:
+        param_b = float(m.group(1))
+        if param_b < _SMALL_THRESHOLD_B:
+            return "small"
+    # Known small model families
+    if any(tag in model for tag in ("0.5b", "0.6b", "1.7b", "1.8b", "2b", "2.7b")):
+        return "small"
+    return "large"
 
 
 def build_system_prompt(tenant_id: str, role: str, user_message: str = "") -> str:
+    """Build the system prompt — compact for small models, full for large."""
+    if _detect_tier() == "small":
+        from src.agent.prompt_small import build_small_system_prompt
+
+        return build_small_system_prompt(tenant_id, role, user_message)
+
+    return _build_full_system_prompt(tenant_id, role, user_message)
+
+
+def _build_full_system_prompt(tenant_id: str, role: str, user_message: str = "") -> str:
     """Build the full system prompt from catalogue context + skills + memories."""
     from src.agent.memory import build_memory_context
     from src.agent.skills.json_patterns import JSON_SKILLS_PROMPT

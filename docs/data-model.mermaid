@@ -1,6 +1,7 @@
 erDiagram
     %% ============================================
     %% JONAS DATA PLATFORM — Core Data Model
+    %% Updated to reflect actual implementation (Phase 6)
     %% ============================================
 
     %% === TENANCY & IDENTITY ===
@@ -8,7 +9,7 @@ erDiagram
         uuid id PK
         text slug UK "url-safe identifier"
         text name
-        jsonb config "feature flags, limits, quotas"
+        json config "feature flags, limits, quotas"
         text storage_prefix "parquet path namespace"
         timestamp created_at
     }
@@ -17,20 +18,45 @@ erDiagram
         uuid id PK
         text email UK
         text display_name
+        text password_hash "PBKDF2-SHA256"
+        text role "admin|analyst|viewer"
         timestamp created_at
+        timestamp revoked_at "soft delete"
     }
 
     tenant_membership {
         uuid id PK
         uuid tenant_id FK
         uuid user_id FK
-        text role "owner|admin|engineer|analyst|viewer"
-        jsonb scope "optional namespace restrictions"
+        text role "admin|analyst|viewer"
+        json scope "optional namespace restrictions"
         timestamp granted_at
         uuid granted_by FK
     }
 
+    tenant_config {
+        uuid id PK
+        uuid tenant_id FK
+        text llm_provider "openai|google|ollama"
+        text llm_model
+        boolean pii_enabled
+        json settings "additional config"
+    }
+
+    invite {
+        uuid id PK
+        uuid tenant_id FK
+        text email
+        text role
+        text token UK
+        uuid invited_by FK
+        timestamp created_at
+        timestamp accepted_at
+    }
+
     tenant ||--o{ tenant_membership : "has members"
+    tenant ||--|| tenant_config : "configured by"
+    tenant ||--o{ invite : "invitations"
     user_account ||--o{ tenant_membership : "belongs to"
 
     %% === SCHEMA CATALOGUE ===
@@ -51,7 +77,7 @@ erDiagram
         text storage_format "parquet|view|materialised"
         text description
         int version
-        jsonb meta "tags, SLA, freshness target"
+        json meta "tags, SLA, freshness target"
         timestamp created_at
         uuid created_by FK
     }
@@ -92,8 +118,10 @@ erDiagram
         uuid target_entity_id FK
         text transform_type "sql|python|dbt_ref"
         text definition "SQL body or code"
-        text schedule "cron or null for event-driven"
-        text status "draft|active|paused|failed"
+        text schedule "cron or null"
+        text status "draft|approved|active|paused|failed"
+        text trigger_mode "manual|on_change"
+        json watch_entities "entity IDs to watch"
         uuid created_by FK
         uuid approved_by FK "nullable"
         timestamp created_at
@@ -107,7 +135,7 @@ erDiagram
         timestamp started_at
         timestamp completed_at
         bigint rows_produced
-        jsonb error_detail
+        json error_detail
     }
 
     transform ||--o{ entity_lineage : produces
@@ -115,51 +143,36 @@ erDiagram
     entity ||--o{ transform : "source of"
     entity ||--o{ transform : "target of"
 
-    %% === INTEGRATIONS ===
-    integration_template {
-        uuid id PK
-        text name "e.g. Webhook Inbound, S3 Pull"
-        text direction "inbound|outbound"
-        text mode "realtime|batch"
-        jsonb config_schema "JSON Schema for user config"
-        text transform_template "default mapping SQL"
-        text description
-    }
-
-    integration {
+    %% === CONNECTORS (renamed from integrations in Phase 4) ===
+    connector {
         uuid id PK
         uuid tenant_id FK
-        uuid template_id FK "nullable"
         text name
-        text direction "inbound|outbound"
-        text mode "realtime|batch"
+        text source_type "webhook|batch|api_pull"
         text status "draft|active|paused|error"
-        jsonb source_config "connection, auth, endpoint"
-        jsonb sink_config "target entity, field mapping"
-        jsonb auth_config "encrypted creds ref"
-        text schedule "cron for batch"
+        json source_config "connection, auth, endpoint"
+        json sink_config "target entity, field mapping"
+        text cron_schedule "cron expression for scheduling"
         uuid target_entity_id FK
         uuid created_by FK
-        uuid approved_by FK "nullable"
         timestamp created_at
     }
 
-    integration_run {
+    connector_run {
         uuid id PK
-        uuid integration_id FK
+        uuid connector_id FK
         text status "running|success|partial|failed"
         timestamp started_at
         timestamp completed_at
         bigint records_in
         bigint records_out
         bigint records_rejected
-        jsonb error_detail
+        json error_detail
     }
 
-    tenant ||--o{ integration : owns
-    integration_template ||--o{ integration : "based on"
-    integration ||--o{ integration_run : "execution history"
-    entity ||--o{ integration : "lands into"
+    tenant ||--o{ connector : owns
+    connector ||--o{ connector_run : "execution history"
+    entity ||--o{ connector : "lands into"
 
     %% === PERMISSIONS ===
     permission_grant {
@@ -167,7 +180,7 @@ erDiagram
         uuid tenant_id FK
         text principal_type "role|user"
         text principal_id "role name or user uuid"
-        text resource_type "namespace|entity|integration|transform"
+        text resource_type "namespace|entity|connector|transform"
         uuid resource_id "null means all of type"
         text action "read|write|create|delete|approve|execute"
         timestamp granted_at
@@ -184,9 +197,21 @@ erDiagram
         text action
         text resource_type
         uuid resource_id
-        jsonb detail "before/after snapshot"
+        json detail "before/after snapshot"
         timestamp created_at
     }
 
+    agent_memory {
+        uuid id PK
+        uuid tenant_id FK
+        uuid user_id FK
+        text key
+        text value
+        float score "relevance decay"
+        timestamp created_at
+        timestamp last_accessed
+    }
+
     tenant ||--o{ audit_log : "tracked by"
+    tenant ||--o{ agent_memory : "agent learns"
     user_account ||--o{ audit_log : performs

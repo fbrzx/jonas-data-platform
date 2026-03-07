@@ -205,7 +205,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Page footer */}
         <footer className="shrink-0 h-9 flex items-center justify-center border-t border-j-border bg-j-surface">
-          <span className="font-mono text-[9px] text-j-border tracking-[0.14em] uppercase">Jonas Data Platform</span>
+          <span className="font-mono text-[9px] text-j-border tracking-[0.14em] uppercase text-j-bright">Jonas Data Platform</span>
         </footer>
       </div>
     </div>

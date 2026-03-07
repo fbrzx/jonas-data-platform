@@ -31,7 +31,7 @@ def build_provider_client() -> ProviderClient:
                 api_key=settings.openai_api_key,
                 base_url=settings.openai_base_url or None,
             ),
-            request_overrides={},
+            request_overrides={"tool_choice": "auto"},
         )
 
     if provider == "google":
@@ -41,6 +41,7 @@ def build_provider_client() -> ProviderClient:
                 api_key=settings.google_api_key,
                 base_url=settings.google_base_url or None,
             ),
+            # Gemini's OpenAI-compat endpoint does not support tool_choice
             request_overrides={},
         )
 
@@ -50,7 +51,7 @@ def build_provider_client() -> ProviderClient:
                 api_key=settings.ollama_api_key or "ollama",
                 base_url=settings.ollama_base_url,
             ),
-            request_overrides={},
+            request_overrides={"tool_choice": "auto"},
         )
 
     if provider in ("claude", "anthropic"):
@@ -61,7 +62,7 @@ def build_provider_client() -> ProviderClient:
                 base_url=settings.claude_base_url,
                 default_headers={"anthropic-version": "2023-06-01"},
             ),
-            request_overrides={},
+            request_overrides={"tool_choice": "auto"},
         )
 
     raise ValueError(

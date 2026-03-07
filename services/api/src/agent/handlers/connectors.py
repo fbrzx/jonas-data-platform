@@ -198,12 +198,30 @@ def handle(
     if tool_name == "create_connector":
         from src.auth.permissions import Action, Resource, can
         from src.integrations.service import create_integration
-
         if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
             return json.dumps(
                 {"error": f"Access denied: role '{role}' cannot create connectors."}
             )
-        result = create_integration(tool_input, tenant_id)
+        name = tool_input.get("name")
+        connector_type = tool_input.get("connector_type")
+        if not name:
+            return json.dumps({"error": "name is required for create_connector."})
+        if not connector_type:
+            return json.dumps(
+                {"error": "connector_type is required "
+                 "(webhook, batch_csv, batch_json, or api_pull)."}
+            )
+        try:
+            result = create_integration(tool_input, tenant_id)
+        except Exception as exc:
+            err_msg = str(exc)
+            if "Duplicate key" in err_msg or "unique constraint" in err_msg.lower():
+                return json.dumps(
+                    {"error": f"A connector named '{name}' already exists."
+                     " Use a different name or call list_connectors"
+                     " to find the existing one."}
+                )
+            return json.dumps({"error": f"Failed to create connector: {err_msg[:200]}"})
         return json.dumps(result, default=str)
 
     return None
