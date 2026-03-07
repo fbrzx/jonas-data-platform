@@ -99,6 +99,9 @@ def handle(
     if tool_name == "draft_transform":
         from src.transforms.service import create_transform
 
+        if not tool_input.get("name"):
+            return json.dumps({"error": "draft_transform requires 'name'."})
+
         sql = (tool_input.get("sql") or tool_input.get("transform_sql") or "").strip()
         if sql:
             from src.db.tenant_schemas import inject_tenant_schemas as _inject_dry
@@ -112,7 +115,18 @@ def handle(
                     }
                 )
 
-        result = create_transform(tool_input, tenant_id, created_by=created_by)
+        try:
+            result = create_transform(tool_input, tenant_id, created_by=created_by)
+        except Exception as exc:
+            err_msg = str(exc)
+            if "Duplicate key" in err_msg or "unique constraint" in err_msg.lower():
+                name = tool_input.get("name", "")
+                return json.dumps(
+                    {
+                        "error": f"Transform '{name}' already exists. Use update_transform to modify it."
+                    }
+                )
+            return json.dumps({"error": err_msg})
         return json.dumps(result, default=str)
 
     # ── update_transform ─────────────────────────────────────────────────────

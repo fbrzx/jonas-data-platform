@@ -66,6 +66,8 @@ def get_transform(transform_id: str, tenant_id: str) -> dict[str, Any] | None:
 def create_transform(
     data: dict[str, Any], tenant_id: str, created_by: str
 ) -> dict[str, Any]:
+    if not data.get("name"):
+        raise ValueError("Transform 'name' is required.")
     sql = data.get("sql", data.get("transform_sql", "")).strip()
     if sql:
         _validate_transform_sql(sql)
