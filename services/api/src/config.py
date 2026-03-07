@@ -55,5 +55,9 @@ class Settings(BaseSettings):
     # Frontend base URL — used to construct invite links
     app_base_url: str = "http://localhost:5173"
 
+    # CORS allowed origins — comma-separated list; defaults to local Vite dev server.
+    # Example: CORS_ORIGINS=https://app.example.com,https://staging.example.com
+    cors_origins: str = "http://localhost:5173"
+
 
 settings = Settings()

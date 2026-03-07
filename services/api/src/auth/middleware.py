@@ -23,11 +23,23 @@ PUBLIC_PATHS = {
 }
 
 _DEMO_TOKENS: dict[str, dict[str, Any]] = {
+    "owner-token": {
+        "user_id": "user-owner",
+        "email": "owner@acme.io",
+        "tenant_id": "tenant-acme",
+        "role": "owner",
+    },
     "admin-token": {
         "user_id": "user-admin",
         "email": "admin@acme.io",
         "tenant_id": "tenant-acme",
         "role": "admin",
+    },
+    "engineer-token": {
+        "user_id": "user-engineer",
+        "email": "engineer@acme.io",
+        "tenant_id": "tenant-acme",
+        "role": "engineer",
     },
     "analyst-token": {
         "user_id": "user-analyst",
