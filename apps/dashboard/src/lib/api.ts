@@ -230,6 +230,8 @@ export interface LineageEdge {
   name: string
   source_layer: string
   target_layer: string
+  source_entity_id?: string
+  target_entity_id?: string
   status: string
 }
 
