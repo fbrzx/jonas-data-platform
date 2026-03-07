@@ -47,8 +47,13 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
     return Math.max(1, (v / maxVal) * INNER_H)
   }
 
-  // X-axis labels: show first, middle, last day
-  const labelIndices = [0, Math.floor(days / 2), days - 1]
+  // X-axis labels: first + two evenly-spaced interior points + last (true thirds)
+  const labelIndices = [
+    0,
+    Math.round((days - 1) / 3),
+    Math.round(2 * (days - 1) / 3),
+    days - 1,
+  ]
 
   return (
     <svg
@@ -114,10 +119,10 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
       ))}
 
       {/* Legend */}
-      <rect x={W - 60} y={PADDING.top} width={6} height={6} fill="#b45309" fillOpacity="0.75" rx="1" />
-      <text x={W - 51} y={PADDING.top + 6} fontSize="7" fill="currentColor" fillOpacity="0.5" fontFamily="monospace">connector</text>
-      <rect x={W - 60} y={PADDING.top + 10} width={6} height={6} fill="#38bdf8" fillOpacity="0.65" rx="1" />
-      <text x={W - 51} y={PADDING.top + 16} fontSize="7" fill="currentColor" fillOpacity="0.5" fontFamily="monospace">transform</text>
+      <rect x={W - 64} y={PADDING.top} width={6} height={6} fill="#b45309" fillOpacity="0.75" rx="1" />
+      <text x={W - 55} y={PADDING.top + 6} fontSize="8" fill="currentColor" fillOpacity="0.7" fontFamily="monospace">connector</text>
+      <rect x={W - 64} y={PADDING.top + 11} width={6} height={6} fill="#38bdf8" fillOpacity="0.65" rx="1" />
+      <text x={W - 55} y={PADDING.top + 17} fontSize="8" fill="currentColor" fillOpacity="0.7" fontFamily="monospace">transform</text>
     </svg>
   )
 }

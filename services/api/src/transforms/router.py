@@ -167,6 +167,8 @@ async def lineage_graph(request: Request) -> dict[str, Any]:
             "name": t["name"],
             "source_layer": t.get("source_layer", "bronze"),
             "target_layer": t.get("target_layer", "silver"),
+            "source_entity_id": t.get("source_entity_id"),
+            "target_entity_id": t.get("target_entity_id"),
             "status": t.get("status", "draft"),
         }
         for t in transforms

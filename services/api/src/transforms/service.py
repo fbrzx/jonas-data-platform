@@ -180,7 +180,11 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
 
     # Infer target table from SQL (CREATE TABLE or INSERT INTO) rather than transform name,
     # since the SQL is the source of truth for what gets created.
-    sql_for_target = str(transform.get("transform_sql", ""))
+    # Apply tenant schema injection first so the extracted name matches the actual table
+    # that DuckDB creates (e.g. silver_acme.orders, not the raw silver.orders reference).
+    from src.db.tenant_schemas import inject_tenant_schemas as _inject_ts
+
+    sql_for_target = _inject_ts(str(transform.get("transform_sql", "")), tenant_id)
     target_table_match = re.search(
         r"(?i)\b(?:CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|INSERT\s+(?:OR\s+\w+\s+)?INTO\s+)([a-z_][a-z0-9_.]*)",
         sql_for_target,
