@@ -140,3 +140,91 @@ async def list_logs(
     total = count_row[0] if count_row else 0
 
     return {"logs": logs, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/stats")
+async def get_stats(
+    request: Request,
+    days: int = 14,
+) -> dict[str, Any]:
+    """Time-series summary of job activity for the past N days.
+
+    Returns daily counts for connector runs and transform runs, plus
+    overall totals — used to populate dashboard activity charts.
+    """
+    require_permission(_user(request), Resource.INTEGRATION, Action.READ)
+    tenant_id = _tenant(request)
+    conn = get_conn()
+
+    # Daily connector run counts
+    connector_rows = conn.execute(
+        """
+        SELECT
+            CAST(cr.started_at AS DATE) AS day,
+            COUNT(*)                    AS total,
+            SUM(CASE WHEN cr.status = 'success' THEN 1 ELSE 0 END) AS success,
+            SUM(CASE WHEN cr.status = 'error'   THEN 1 ELSE 0 END) AS error
+        FROM integrations.connector_run cr
+        JOIN integrations.connector c ON c.id = cr.integration_id
+        WHERE c.tenant_id = ?
+          AND cr.started_at >= CURRENT_DATE - INTERVAL (?) DAY
+        GROUP BY day
+        ORDER BY day
+        """,
+        [tenant_id, days],
+    ).fetchall()
+    connector_cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+    connector_daily = [dict(zip(connector_cols, r)) for r in connector_rows]
+    for row in connector_daily:
+        if hasattr(row.get("day"), "isoformat"):
+            row["day"] = row["day"].isoformat()
+
+    # Daily transform run counts
+    transform_rows = conn.execute(
+        """
+        SELECT
+            CAST(tr.started_at AS DATE) AS day,
+            COUNT(*)                    AS total,
+            SUM(CASE WHEN tr.status = 'success' THEN 1 ELSE 0 END) AS success,
+            SUM(CASE WHEN tr.status = 'error'   THEN 1 ELSE 0 END) AS error
+        FROM transforms.transform_run tr
+        JOIN transforms.transform t ON t.id = tr.transform_id
+        WHERE t.tenant_id = ?
+          AND tr.started_at >= CURRENT_DATE - INTERVAL (?) DAY
+        GROUP BY day
+        ORDER BY day
+        """,
+        [tenant_id, days],
+    ).fetchall()
+    transform_cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+    transform_daily = [dict(zip(transform_cols, r)) for r in transform_rows]
+    for row in transform_daily:
+        if hasattr(row.get("day"), "isoformat"):
+            row["day"] = row["day"].isoformat()
+
+    # Overall totals
+    totals_row = conn.execute(
+        """
+        SELECT
+            COUNT(DISTINCT c.id)  AS total_connectors,
+            COUNT(DISTINCT t.id)  AS total_transforms,
+            COUNT(cr.id)          AS total_connector_runs,
+            COUNT(tr.id)          AS total_transform_runs
+        FROM platform.tenant pt
+        LEFT JOIN integrations.connector  c  ON c.tenant_id  = pt.id
+        LEFT JOIN integrations.connector_run cr ON cr.integration_id = c.id
+        LEFT JOIN transforms.transform    t  ON t.tenant_id  = pt.id
+        LEFT JOIN transforms.transform_run tr ON tr.transform_id    = t.id
+        WHERE pt.id = ?
+        """,
+        [tenant_id],
+    ).fetchone()
+    totals_cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
+    totals = dict(zip(totals_cols, totals_row)) if totals_row else {}
+
+    return {
+        "days": days,
+        "connector_daily": connector_daily,
+        "transform_daily": transform_daily,
+        "totals": totals,
+    }

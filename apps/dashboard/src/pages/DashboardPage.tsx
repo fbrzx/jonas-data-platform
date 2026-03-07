@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, type Entity, type Transform, getToken, getRoleFromToken } from '../lib/api'
+import ActivityChart from '../components/ActivityChart'
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,11 @@ export default function DashboardPage() {
     queryFn: api.integrations.list,
     staleTime: 30_000,
   })
+  const { data: auditStats } = useQuery({
+    queryKey: ['audit-stats'],
+    queryFn: () => api.audit.stats(14),
+    staleTime: 60_000,
+  })
 
   const ents = entities ?? []
   const trns = transforms ?? []
@@ -135,9 +141,11 @@ export default function DashboardPage() {
         <div className="flex items-baseline gap-3">
           <h2 className="text-j-bright font-semibold">Jonas Data Platform</h2>
           <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${
-            role === 'admin'   ? 'text-j-purple border-j-purple bg-j-purple-dim' :
-            role === 'analyst' ? 'text-j-accent border-j-accent bg-j-accent-dim' :
-                                 'text-j-dim border-j-border bg-j-surface2'
+            role === 'owner'    ? 'text-j-green  border-j-green  bg-j-green-dim'  :
+            role === 'admin'    ? 'text-j-purple border-j-purple bg-j-purple-dim' :
+            role === 'engineer' ? 'text-j-amber  border-j-amber  bg-j-amber-dim'  :
+            role === 'analyst'  ? 'text-j-accent border-j-accent bg-j-accent-dim' :
+                                  'text-j-dim border-j-border bg-j-surface2'
           }`}>{role}</span>
         </div>
         <p className="font-mono text-[11px] text-j-dim mt-1">
@@ -168,6 +176,27 @@ export default function DashboardPage() {
           <QuickAction to="/catalogue"    glyph="◫" label="Browse Catalogue" sub="Explore entities and schemas" />
           <QuickAction to="/transforms"   glyph="⟳" label="Transforms"       sub="Review and approve SQL transforms" />
           <QuickAction to="/lineage"      glyph="⬡" label="View Lineage"     sub="Bronze → Silver → Gold flow" />
+        </div>
+      </div>
+
+      {/* Activity chart */}
+      <div className="mb-6 border border-j-border rounded bg-j-surface overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-j-border flex items-center justify-between">
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-j-dim">Job activity — last 14 days</span>
+          <Link to="/audit" className="font-mono text-[10px] text-j-accent hover:underline">view audit →</Link>
+        </div>
+        <div className="px-4 py-3 text-j-dim">
+          {auditStats ? (
+            <ActivityChart
+              connectorDays={auditStats.connector_daily}
+              transformDays={auditStats.transform_daily}
+              days={14}
+            />
+          ) : (
+            <div className="h-14 flex items-center">
+              <span className="font-mono text-[10px] text-j-dim italic">loading…</span>
+            </div>
+          )}
         </div>
       </div>
 

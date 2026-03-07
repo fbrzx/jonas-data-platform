@@ -69,9 +69,10 @@ async def permission_error_handler(_: Request, exc: PermissionError) -> JSONResp
     return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 
 
+_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "PATCH"],
     allow_headers=["Authorization", "Content-Type", "X-API-Token"],

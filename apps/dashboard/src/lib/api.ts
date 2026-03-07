@@ -36,7 +36,8 @@ export function getRoleFromToken(token: string): string {
   } catch {
     // demo tokens
     const map: Record<string, string> = {
-      'admin-token': 'admin', 'analyst-token': 'analyst', 'viewer-token': 'viewer',
+      'owner-token': 'owner', 'admin-token': 'admin', 'engineer-token': 'engineer',
+      'analyst-token': 'analyst', 'viewer-token': 'viewer',
     }
     return map[token] ?? 'viewer'
   }
@@ -274,6 +275,25 @@ export interface InviteResponse {
   invite_link: string
 }
 
+export interface AuditDayCount {
+  day: string
+  total: number
+  success: number
+  error: number
+}
+
+export interface AuditStats {
+  days: number
+  connector_daily: AuditDayCount[]
+  transform_daily: AuditDayCount[]
+  totals: {
+    total_connectors: number
+    total_transforms: number
+    total_connector_runs: number
+    total_transform_runs: number
+  }
+}
+
 // ── Fetch wrapper ─────────────────────────────────────────────────────────────
 
 let _refreshing: Promise<void> | null = null
@@ -440,6 +460,8 @@ export const api = {
         `/audit/logs?${params}`
       )
     },
+    stats: (days = 14) =>
+      request<AuditStats>(`/audit/stats?days=${days}`),
   },
 
   tenant: {
