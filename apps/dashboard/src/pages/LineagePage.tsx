@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, type LineageNode, type LineageEdge } from '../lib/api'
+import PageHeader from '../components/PageHeader'
 
 // ── Layer config ───────────────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ function NodeCard({
   return (
     <div
       className={`
-        border rounded px-3 py-2.5 w-full transition-all duration-150 select-none
+        border rounded px-2.5 py-2 w-full transition-all duration-150 select-none
         ${selected
           ? `${cfg.border} bg-j-surface2 ring-1 ring-inset ${cfg.border}`
           : dimmed
@@ -106,50 +107,164 @@ export default function LineagePage() {
   const nodeEls    = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const allNodes = data?.nodes ?? []
-  const allEdges = data?.edges ?? []
+  const rawEdges = data?.edges ?? []
+
+  // ── Resolve missing entity IDs on edges ──────────────────────────────────
+  // Backend resolves from SQL but Docker may not be rebuilt. Parse SQL on the
+  // frontend as fallback: FROM/JOIN → source entities, CREATE/INSERT → target.
+
+  const nodesByName = new Map(allNodes.map((n) => [`${n.layer}:${n.name}`, n]))
+
+  function resolveFromSql(sql: string, preferredLayer: string, role: 'source' | 'target'): string | undefined {
+    if (!sql) return undefined
+    const tables: string[] = []
+    if (role === 'target') {
+      const m = sql.match(/(?:CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|INSERT\s+(?:OR\s+\w+\s+)?INTO\s+)(?:\w+\.)?(\w+)/i)
+      if (m) tables.push(m[1])
+    } else {
+      for (const m of sql.matchAll(/\bFROM\s+(?:\w+\.)?(\w+)/gi)) tables.push(m[1])
+      for (const m of sql.matchAll(/\bJOIN\s+(?:\w+\.)?(\w+)/gi)) tables.push(m[1])
+    }
+    const layerOrder = [preferredLayer, ...LAYERS.filter((l) => l !== preferredLayer)]
+    for (const t of tables) {
+      for (const l of layerOrder) {
+        const node = nodesByName.get(`${l}:${t}`)
+        if (node) return node.id
+      }
+    }
+    return undefined
+  }
+
+  // Resolve all source entity references from SQL (may be multiple FROM/JOIN)
+  // For medallion pattern: prefer the layer closest to the target (e.g. silver for gold transforms)
+  function resolveAllSources(sql: string, sourceLayer: string, targetLayer: string): string[] {
+    if (!sql) return []
+    const tables: string[] = []
+    for (const m of sql.matchAll(/\bFROM\s+(?:\w+\.)?(\w+)/gi)) tables.push(m[1])
+    for (const m of sql.matchAll(/\bJOIN\s+(?:\w+\.)?(\w+)/gi)) {
+      if (!tables.includes(m[1])) tables.push(m[1])
+    }
+    // Order layers: prefer layer just below target, then declared source, then rest
+    const srcIdx = LAYERS.indexOf(sourceLayer as LayerKey)
+    const tgtIdx = LAYERS.indexOf(targetLayer as LayerKey)
+    const intermediates = LAYERS.slice(srcIdx, tgtIdx).reverse()
+    const layerOrder = [...new Set([...intermediates, sourceLayer, ...LAYERS.filter((l) => l !== targetLayer)])]
+    const ids: string[] = []
+    for (const t of tables) {
+      for (const l of layerOrder) {
+        const node = nodesByName.get(`${l}:${t}`)
+        if (node && !ids.includes(node.id)) { ids.push(node.id); break }
+      }
+    }
+    return ids
+  }
+
+  // Expand each raw edge into one-or-more edges (one per source entity)
+  const allEdges: LineageEdge[] = []
+  for (const e of rawEdges) {
+    const sql = e.sql ?? ''
+
+    // Resolve target entity
+    let target_entity_id = e.target_entity_id
+      ?? resolveFromSql(sql, e.target_layer, 'target')
+    if (!target_entity_id) {
+      const match = allNodes.find(
+        (n) => n.layer === e.target_layer && e.name.toLowerCase().includes(n.name.toLowerCase()),
+      )
+      if (match) target_entity_id = match.id
+    }
+    if (!target_entity_id) {
+      const layerNodes = allNodes.filter((n) => n.layer === e.target_layer)
+      if (layerNodes.length === 1) target_entity_id = layerNodes[0].id
+    }
+
+    // Resolve all source entities (may be multiple)
+    // Always re-resolve from SQL to prefer intermediate layers (e.g. silver for bronze→gold)
+    let sourceIds: string[] = resolveAllSources(sql, e.source_layer, e.target_layer)
+    if (!sourceIds.length && e.source_entity_id) {
+      sourceIds = [e.source_entity_id]
+    }
+    if (!sourceIds.length) {
+      const match = allNodes.find(
+        (n) => n.layer === e.source_layer && e.name.toLowerCase().includes(n.name.toLowerCase()),
+      )
+      if (match) sourceIds = [match.id]
+    }
+    if (!sourceIds.length) {
+      const layerNodes = allNodes.filter((n) => n.layer === e.source_layer)
+      if (layerNodes.length === 1) sourceIds = [layerNodes[0].id]
+    }
+
+    // Create one edge per source entity (or one with null if unresolved)
+    // Use the resolved entity's actual layer for correct edge coloring
+    if (sourceIds.length > 0 && target_entity_id) {
+      for (const srcId of sourceIds) {
+        const srcNode = allNodes.find((n) => n.id === srcId)
+        const tgtNode = allNodes.find((n) => n.id === target_entity_id)
+        allEdges.push({
+          ...e, id: `${e.id}_${srcId}`, source_entity_id: srcId, target_entity_id,
+          source_layer: srcNode?.layer ?? e.source_layer,
+          target_layer: tgtNode?.layer ?? e.target_layer,
+        })
+      }
+    } else {
+      allEdges.push({ ...e, source_entity_id: sourceIds[0], target_entity_id })
+    }
+  }
 
   // ── Filtering ──────────────────────────────────────────────────────────────
 
-  const visibleNodes = allNodes.filter((n) =>
-    !search || n.name.toLowerCase().includes(search.toLowerCase())
+  const visibleNodeIds = new Set(
+    allNodes
+      .filter((n) => !search || n.name.toLowerCase().includes(search.toLowerCase()))
+      .map((n) => n.id),
   )
 
+  // Edges visible when status matches AND both endpoints are visible
   const visibleEdges = allEdges.filter((e) =>
-    statusFilter === 'all' || e.status === statusFilter
+    (statusFilter === 'all' || e.status === statusFilter) &&
+    (!e.source_entity_id || visibleNodeIds.has(e.source_entity_id)) &&
+    (!e.target_entity_id || visibleNodeIds.has(e.target_entity_id)),
   )
+
+  // Show all nodes matching search (no further filtering by edge connectivity)
+  const visibleNodes = allNodes.filter((n) => visibleNodeIds.has(n.id))
 
   const nodesByLayer = Object.fromEntries(
     LAYERS.map((l) => [l, visibleNodes.filter((n) => n.layer === l)])
   ) as Record<LayerKey, LineageNode[]>
 
   // ── Selection / focus ─────────────────────────────────────────────────────
+  // Only silver/gold nodes are clickable for tracing. When clicked, trace
+  // upstream through edges to find all connected bronze source nodes.
 
-  // Walk the full graph transitively from selectedId (upstream + downstream)
-  const connectedNodeIds = selectedId ? new Set<string>([selectedId]) : null
-  const connectedEdgeIds = selectedId ? new Set<string>() : null
+  const selectedNode = selectedId ? visibleNodes.find((n) => n.id === selectedId) : null
+  const selectedIsTraced = selectedNode && selectedNode.layer !== 'bronze'
 
-  if (selectedId && connectedNodeIds && connectedEdgeIds) {
+  const connectedNodeIds = selectedIsTraced ? new Set<string>([selectedId!]) : null
+  const connectedEdgeIds = selectedIsTraced ? new Set<string>() : null
+
+  if (selectedIsTraced && connectedNodeIds && connectedEdgeIds) {
+    // Walk upstream: from the selected node, find edges whose target matches a
+    // connected node, then add the source node. Repeat until stable.
     let changed = true
     while (changed) {
       changed = false
       for (const e of visibleEdges) {
-        const srcIn = e.source_entity_id && connectedNodeIds.has(e.source_entity_id)
-        const tgtIn = e.target_entity_id && connectedNodeIds.has(e.target_entity_id)
-        if (srcIn || tgtIn) {
+        if (!e.source_entity_id || !e.target_entity_id) continue
+        // upstream: edge target is in our set → add edge + source
+        if (connectedNodeIds.has(e.target_entity_id)) {
           if (!connectedEdgeIds.has(e.id)) { connectedEdgeIds.add(e.id); changed = true }
-          if (e.source_entity_id && !connectedNodeIds.has(e.source_entity_id)) {
+          if (!connectedNodeIds.has(e.source_entity_id)) {
             connectedNodeIds.add(e.source_entity_id); changed = true
-          }
-          if (e.target_entity_id && !connectedNodeIds.has(e.target_entity_id)) {
-            connectedNodeIds.add(e.target_entity_id); changed = true
           }
         }
       }
     }
   }
 
-  const isNodeDimmed = (id: string) => selectedId !== null && !connectedNodeIds?.has(id)
-  const isEdgeDimmed = (id: string) => selectedId !== null && !connectedEdgeIds?.has(id)
+  const isNodeDimmed = (id: string) => selectedIsTraced ? !connectedNodeIds?.has(id) : false
+  const isEdgeDimmed = (id: string) => selectedIsTraced ? !connectedEdgeIds?.has(id) : true
 
   // ── SVG path calculation ───────────────────────────────────────────────────
   //
@@ -204,47 +319,36 @@ export default function LineagePage() {
     <div className="flex flex-col flex-1 overflow-auto bg-j-bg p-6">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-5 pb-4 border-b border-j-border gap-4">
-        <div>
-          <div className="font-mono text-[10px] text-j-dim tracking-[0.18em] uppercase mb-1">Lineage</div>
-          <h2 className="text-j-bright font-semibold">Data Lineage</h2>
+      <PageHeader label="Lineage" title="Data Lineage">
+        <input
+          type="text"
+          placeholder="filter entities…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="font-mono text-[11px] bg-j-surface border border-j-border rounded px-2.5 py-1.5 text-j-bright placeholder-j-dim focus:outline-none focus:border-j-accent w-40"
+        />
+        <div className="flex items-center gap-1">
+          {(['all', 'approved', 'draft'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 py-1.5 rounded border transition-colors
+                ${statusFilter === s
+                  ? 'border-j-accent text-j-accent bg-j-surface2'
+                  : 'border-j-border text-j-dim hover:border-j-accent hover:text-j-accent'
+                }`}
+            >
+              {s}
+            </button>
+          ))}
         </div>
-
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="filter entities…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="font-mono text-[11px] bg-j-surface border border-j-border rounded px-2.5 py-1.5 text-j-bright placeholder-j-dim focus:outline-none focus:border-j-accent w-40"
-          />
-
-          {/* Status filter */}
-          <div className="flex items-center gap-1">
-            {(['all', 'approved', 'draft'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 py-1.5 rounded border transition-colors
-                  ${statusFilter === s
-                    ? 'border-j-accent text-j-accent bg-j-surface2'
-                    : 'border-j-border text-j-dim hover:border-j-accent hover:text-j-accent'
-                  }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => refetch()}
-            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+        <button
+          onClick={() => refetch()}
+          className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors"
+        >
+          Refresh
+        </button>
+      </PageHeader>
 
       {/* ── States ── */}
       {isLoading && (
@@ -268,7 +372,7 @@ export default function LineagePage() {
               </div>
             ))}
             <span className="font-mono text-[10px] text-j-dim ml-2">
-              · click a node to trace its pipeline
+              · click a silver or gold node to trace its pipeline
             </span>
             {selectedId && (
               <button
@@ -299,7 +403,8 @@ export default function LineagePage() {
                   const dimmed  = isEdgeDimmed(edge.id)
                   const hovered = hoveredEdgeId === edge.id
                   const isDraft = edge.status === 'draft'
-                  const opacity = dimmed ? 0.08 : hovered ? 1 : 0.5
+                  // Always show edges at baseline opacity; highlight connected on selection
+                  const opacity = hovered ? 1 : dimmed ? (selectedIsTraced ? 0 : 0.25) : 0.6
                   const sw      = hovered ? 2.5 : 1.5
 
                   return (
@@ -361,9 +466,9 @@ export default function LineagePage() {
                 {LAYERS.map((layer, idx) => (
                   <Fragment key={layer}>
                     {/* Gap between columns — SVG paths route through here */}
-                    {idx > 0 && <div className="w-32 shrink-0" />}
+                    {idx > 0 && <div className="w-16 shrink-0" />}
 
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-[160px] max-w-[280px]">
                       {/* Column header */}
                       <div className={`flex items-center gap-2 py-2.5 border-b ${LAYER[layer].border} mb-3 px-1`}>
                         <span className={`w-2 h-2 rounded-full shrink-0 ${LAYER[layer].dot}`} />
@@ -387,8 +492,11 @@ export default function LineagePage() {
                                 if (el) nodeEls.current.set(n.id, el)
                                 else nodeEls.current.delete(n.id)
                               }}
-                              onClick={() => setSelectedId(selectedId === n.id ? null : n.id)}
-                              className="cursor-pointer"
+                              onClick={() => {
+                                if (n.layer === 'bronze') return
+                                setSelectedId(selectedId === n.id ? null : n.id)
+                              }}
+                              className={n.layer === 'bronze' ? 'cursor-default' : 'cursor-pointer'}
                             >
                               <NodeCard
                                 node={n}

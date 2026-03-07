@@ -14,9 +14,9 @@ interface Props {
   days?: number
 }
 
-const W = 320
-const H = 56
-const PADDING = { top: 4, right: 4, bottom: 16, left: 0 }
+const W = 800
+const H = 120
+const PADDING = { top: 8, right: 8, bottom: 24, left: 0 }
 const INNER_W = W - PADDING.left - PADDING.right
 const INNER_H = H - PADDING.top - PADDING.bottom
 
@@ -56,9 +56,23 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
   ]
 
   return (
+    <div>
+      {/* Legend — flat row above chart */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 6, paddingLeft: PADDING.left }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: '#b45309', opacity: 0.75, display: 'inline-block' }} />
+          <span style={{ fontFamily: 'monospace', fontSize: 10, opacity: 0.7 }}>connector</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: '#38bdf8', opacity: 0.65, display: 'inline-block' }} />
+          <span style={{ fontFamily: 'monospace', fontSize: 10, opacity: 0.7 }}>transform</span>
+        </div>
+      </div>
     <svg
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
+      height="120"
+      preserveAspectRatio="xMidYMid meet"
       aria-label="Activity over time"
       style={{ display: 'block', overflow: 'visible' }}
     >
@@ -109,7 +123,7 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
           x={PADDING.left + i * barW + barW / 2}
           y={H - 1}
           textAnchor="middle"
-          fontSize="7"
+          fontSize="10"
           fill="currentColor"
           fillOpacity="0.4"
           fontFamily="monospace"
@@ -118,11 +132,7 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
         </text>
       ))}
 
-      {/* Legend */}
-      <rect x={W - 64} y={PADDING.top} width={6} height={6} fill="#b45309" fillOpacity="0.75" rx="1" />
-      <text x={W - 55} y={PADDING.top + 6} fontSize="8" fill="currentColor" fillOpacity="0.7" fontFamily="monospace">connector</text>
-      <rect x={W - 64} y={PADDING.top + 11} width={6} height={6} fill="#38bdf8" fillOpacity="0.65" rx="1" />
-      <text x={W - 55} y={PADDING.top + 17} fontSize="8" fill="currentColor" fillOpacity="0.7" fontFamily="monospace">transform</text>
     </svg>
+    </div>
   )
 }

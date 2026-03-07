@@ -168,6 +168,13 @@ export interface FieldUpdate {
   description?: string
 }
 
+export interface EntityCreate {
+  name: string
+  description?: string
+  layer?: string
+  tags?: string[]
+}
+
 export interface EntityUpdate {
   name?: string
   description?: string
@@ -233,6 +240,7 @@ export interface LineageEdge {
   source_entity_id?: string
   target_entity_id?: string
   status: string
+  sql?: string
 }
 
 export interface ChatMessage {
@@ -376,6 +384,8 @@ export const api = {
   },
   catalogue: {
     list: () => request<Entity[]>('/catalogue/entities'),
+    create: (body: EntityCreate) =>
+      request<Entity>('/catalogue/entities', { method: 'POST', body: JSON.stringify(body) }),
     get: (id: string) => request<Entity>(`/catalogue/entities/${id}`),
     getFields: (id: string) => request<EntityField[]>(`/catalogue/entities/${id}/fields`),
     preview: (id: string) => request<PreviewResult>(`/catalogue/entities/${id}/preview`),
@@ -386,6 +396,8 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    delete: (id: string) =>
+      request<void>(`/catalogue/entities/${id}`, { method: 'DELETE' }),
     deleteField: (entityId: string, fieldId: string) =>
       request<void>(`/catalogue/entities/${entityId}/fields/${fieldId}`, { method: 'DELETE' }),
   },
@@ -446,6 +458,8 @@ export const api = {
       }),
     execute: (id: string) =>
       request<ExecuteResult>(`/transforms/${id}/execute`, { method: 'POST' }),
+    delete: (id: string) =>
+      request<void>(`/transforms/${id}`, { method: 'DELETE' }),
     lineage: () => request<{ nodes: LineageNode[]; edges: LineageEdge[] }>('/transforms/lineage/graph'),
   },
 

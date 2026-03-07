@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { api, type Integration, type IntegrationCreate, type IntegrationUpdate, type IntegrationRun } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
 import { useToast } from '../lib/toast'
+import PageHeader from '../components/PageHeader'
 
 // ── Cron helpers ───────────────────────────────────────────────────────────────
 
@@ -671,7 +672,7 @@ function ConnectorCard({
       )}
 
       {/* Meta + Actions */}
-      <div className="px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
+      <div className="px-4 py-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim">{connector.connector_type}</span>
           <span className="font-mono text-[10px] text-j-dim opacity-50">
@@ -683,7 +684,7 @@ function ConnectorCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button
             onClick={onRuns}
             className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-2 py-1 rounded transition-colors"
@@ -739,12 +740,19 @@ export default function ConnectorsPage() {
   const [uploadTarget, setUploadTarget] = useState<Integration | null>(null)
   const [runsTarget, setRunsTarget] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<Integration | null>(null)
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
 
   const { data: connectors, isLoading, error, refetch } = useQuery({
     queryKey: ['connectors'],
     queryFn: api.connectors.list,
     staleTime: 30_000,
   })
+
+  const filteredConnectors = (connectors ?? []).filter(
+    (c) => (typeFilter === 'all' || c.connector_type === typeFilter) &&
+           (!search || c.name.toLowerCase().includes(search.toLowerCase())),
+  )
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.connectors.delete(id),
@@ -775,29 +783,44 @@ export default function ConnectorsPage() {
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-j-bg">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5 pb-4 border-b border-j-border">
-        <div>
-          <div className="font-mono text-[10px] text-j-dim tracking-[0.18em] uppercase mb-1">Connectors</div>
-          <h2 className="text-j-bright font-semibold">Data Sources</h2>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => refetch()}
-            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors"
-          >
-            Refresh
-          </button>
-          {canWrite && (
+      <PageHeader label="Connectors" title="Data Sources">
+        <input
+          type="text"
+          placeholder="filter connectors…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="font-mono text-[11px] bg-j-surface border border-j-border rounded px-2.5 py-1.5 text-j-bright placeholder-j-dim focus:outline-none focus:border-j-accent w-40"
+        />
+        <div className="flex items-center gap-1">
+          {(['all', 'webhook', 'batch_csv', 'batch_json', 'api_pull'] as const).map((s) => (
             <button
-              onClick={() => setShowCreate(true)}
-              className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
+              key={s}
+              onClick={() => setTypeFilter(s)}
+              className={`font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 py-1.5 rounded border transition-colors
+                ${typeFilter === s
+                  ? 'border-j-accent text-j-accent bg-j-surface2'
+                  : 'border-j-border text-j-dim hover:border-j-accent hover:text-j-accent'
+                }`}
             >
-              + New
+              {s === 'all' ? 'all' : s.replace('_', ' ')}
             </button>
-          )}
+          ))}
         </div>
-      </div>
+        <button
+          onClick={() => refetch()}
+          className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors"
+        >
+          Refresh
+        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
+          >
+            + New
+          </button>
+        )}
+      </PageHeader>
 
       {/* Import Guide */}
       <div className="mb-5 px-4 py-3 rounded border border-j-border bg-j-surface2 font-mono text-[11px] text-j-dim">
@@ -819,20 +842,24 @@ export default function ConnectorsPage() {
         </div>
       )}
 
-      {!isLoading && !error && !(connectors ?? []).length && (
+      {!isLoading && !error && !filteredConnectors.length && (
         <div className="text-center py-16">
-          <p className="font-mono text-[11px] text-j-dim mb-3">no connectors yet</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-4 py-2 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
-          >
-            + Create your first connector
-          </button>
+          <p className="font-mono text-[11px] text-j-dim mb-3">
+            {typeFilter !== 'all' ? `no ${typeFilter.replace('_', ' ')} connectors` : 'no connectors yet'}
+          </p>
+          {typeFilter === 'all' && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-4 py-2 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
+            >
+              + Create your first connector
+            </button>
+          )}
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(connectors ?? []).map((c) => (
+      <div className="grid gap-3 lg:grid-cols-2">
+        {filteredConnectors.map((c) => (
           <ConnectorCard
             key={c.id}
             connector={c}

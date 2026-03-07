@@ -144,6 +144,8 @@ async def execute_transform(transform_id: UUID, request: Request) -> dict[str, A
 @router.get("/lineage/graph")
 async def lineage_graph(request: Request) -> dict[str, Any]:
     """Return entities (nodes) and transforms (edges) for lineage visualisation."""
+    import re
+
     from src.catalogue.service import list_entities
 
     require_permission(_user(request), Resource.TRANSFORM, Action.READ)
@@ -161,16 +163,112 @@ async def lineage_graph(request: Request) -> dict[str, Any]:
         }
         for e in entities
     ]
-    edges = [
-        {
-            "id": t["id"],
+
+    # Build lookup: (layer, name) → entity id for resolving transform edges
+    entity_by_layer_name: dict[tuple[str, str], str] = {
+        (e.get("layer", "bronze"), e["name"]): e["id"] for e in entities
+    }
+
+    def _resolve_target(transform: dict[str, Any]) -> str | None:
+        eid = transform.get("target_entity_id")
+        if eid:
+            return str(eid)
+        layer = transform.get("target_layer", "silver")
+        sql = str(transform.get("transform_sql", ""))
+        m = re.search(
+            r"(?i)\b(?:CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|INSERT\s+(?:OR\s+\w+\s+)?INTO\s+)"
+            r"(?:\w+\.)?(\w+)",
+            sql,
+        )
+        if m:
+            tbl = m.group(1)
+            for try_layer in [layer] + [
+                l for l in ("bronze", "silver", "gold") if l != layer
+            ]:
+                key = (try_layer, tbl)
+                if key in entity_by_layer_name:
+                    return entity_by_layer_name[key]
+        layer_entities = [e for e in entities if e.get("layer") == layer]
+        if len(layer_entities) == 1:
+            return str(layer_entities[0]["id"])
+        return None
+
+    def _resolve_sources(transform: dict[str, Any]) -> list[str]:
+        eid = transform.get("source_entity_id")
+        if eid:
+            return [str(eid)]
+        source_layer = transform.get("source_layer", "bronze")
+        target_layer = transform.get("target_layer", "silver")
+        sql = str(transform.get("transform_sql", ""))
+        # Collect table names from SQL
+        tables: list[str] = []
+        for m in re.finditer(r"(?i)\bFROM\s+(?:\w+\.)?(\w+)", sql):
+            if m.group(1) not in tables:
+                tables.append(m.group(1))
+        for m in re.finditer(r"(?i)\bJOIN\s+(?:\w+\.)?(\w+)", sql):
+            if m.group(1) not in tables:
+                tables.append(m.group(1))
+        # For medallion pattern: prefer layer just below the target (e.g. silver for gold transforms)
+        layer_order = ("bronze", "silver", "gold")
+        src_idx = layer_order.index(source_layer) if source_layer in layer_order else 0
+        tgt_idx = (
+            layer_order.index(target_layer)
+            if target_layer in layer_order
+            else len(layer_order)
+        )
+        intermediates = list(reversed(layer_order[src_idx:tgt_idx]))
+        seen: set[str] = set()
+        all_layers: list[str] = []
+        for l in [
+            *intermediates,
+            source_layer,
+            *[x for x in layer_order if x != target_layer],
+        ]:
+            if l not in seen:
+                all_layers.append(l)
+                seen.add(l)
+        ids: list[str] = []
+        for tbl in tables:
+            for layer in all_layers:
+                key = (layer, tbl)
+                if key in entity_by_layer_name and entity_by_layer_name[key] not in ids:
+                    ids.append(entity_by_layer_name[key])
+                    break
+        if not ids:
+            layer_entities = [e for e in entities if e.get("layer") == source_layer]
+            if len(layer_entities) == 1:
+                ids.append(str(layer_entities[0]["id"]))
+        return ids
+
+    # Build edges — one per (source_entity, target_entity) pair
+    edges: list[dict[str, Any]] = []
+    for t in transforms:
+        target_id = _resolve_target(t)
+        source_ids = _resolve_sources(t)
+        base = {
             "name": t["name"],
             "source_layer": t.get("source_layer", "bronze"),
             "target_layer": t.get("target_layer", "silver"),
-            "source_entity_id": t.get("source_entity_id"),
-            "target_entity_id": t.get("target_entity_id"),
             "status": t.get("status", "draft"),
+            "sql": t.get("transform_sql", ""),
         }
-        for t in transforms
-    ]
+        if source_ids and target_id:
+            for src_id in source_ids:
+                edges.append(
+                    {
+                        **base,
+                        "id": f"{t['id']}_{src_id}",
+                        "source_entity_id": src_id,
+                        "target_entity_id": target_id,
+                    }
+                )
+        else:
+            edges.append(
+                {
+                    **base,
+                    "id": t["id"],
+                    "source_entity_id": source_ids[0] if source_ids else None,
+                    "target_entity_id": target_id,
+                }
+            )
     return {"nodes": nodes, "edges": edges}

@@ -198,7 +198,10 @@ def handle(
             "description": tool_input.get("description", ""),
             "tags": [tool_input["namespace"]] if tool_input.get("namespace") else [],
         }
-        entity = create_entity(entity_data, tenant_id)
+        try:
+            entity = create_entity(entity_data, tenant_id)
+        except ValueError as exc:
+            return json.dumps({"error": str(exc)})
         fields = create_fields_bulk(
             entity["id"], tool_input.get("fields", []), created_by
         )

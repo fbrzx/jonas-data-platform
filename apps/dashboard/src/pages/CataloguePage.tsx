@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type Entity, type EntityField, type PreviewResult, type EntityUpdate, type FieldUpdate } from '../lib/api'
+import { api, type Entity, type EntityField, type PreviewResult, type EntityCreate, type EntityUpdate, type FieldUpdate } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
 import { useToast } from '../lib/toast'
+import PageHeader from '../components/PageHeader'
 
 // ── Layer config ──────────────────────────────────────────────────────────────
 
@@ -407,6 +408,27 @@ function EntityRow({ entity }: { entity: Entity }) {
   const [tab, setTab] = useState<'fields' | 'data'>('fields')
   const [editOpen, setEditOpen] = useState(false)
   const { canWrite, canAdmin } = usePermissions()
+  const qc = useQueryClient()
+  const { confirm } = useToast()
+
+  const deleteMut = useMutation({
+    mutationFn: () => api.catalogue.delete(entity.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['entities'] }),
+  })
+
+  async function handleDelete() {
+    // Check if entity has data by doing a quick preview
+    let warning = `Delete entity "${entity.name}"? This removes the catalogue entry.`
+    try {
+      const preview = await api.catalogue.preview(entity.id)
+      if (preview && preview.count > 0) {
+        warning = `⚠ Entity "${entity.name}" contains ${preview.count}+ rows of data.\n\nDelete anyway? The underlying table will NOT be dropped, but the catalogue entry and field definitions will be removed.`
+      }
+    } catch { /* table may not exist — safe to delete */ }
+    const ok = await confirm(warning)
+    if (!ok) return
+    deleteMut.mutate()
+  }
 
   const { data: fields, isLoading: fieldsLoading } = useQuery({
     queryKey: ['entity-fields', entity.id],
@@ -461,6 +483,16 @@ function EntityRow({ entity }: { entity: Entity }) {
                 Edit
               </button>
             )}
+            {canAdmin && (
+              <button
+                onClick={handleDelete}
+                disabled={deleteMut.isPending}
+                className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-red/60 border border-j-border hover:border-j-red hover:text-j-red px-2 py-1 rounded transition-colors disabled:opacity-30"
+                title="Delete entity"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
@@ -509,10 +541,107 @@ function EntityRow({ entity }: { entity: Entity }) {
   )
 }
 
+// ── Create Entity Modal ───────────────────────────────────────────────────────
+
+function CreateEntityModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState<EntityCreate>({ name: '', layer: 'bronze' })
+  const [tagsInput, setTagsInput] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (body: EntityCreate) => api.catalogue.create(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['entities'] })
+      onClose()
+    },
+    onError: (err: Error) => setError(err.message),
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name.trim()) { setError('Name is required'); return }
+    setError(null)
+    const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean)
+    mutation.mutate({ ...form, tags })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-lg bg-j-surface border border-j-border rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-j-border">
+          <span className="font-mono text-xs font-semibold text-j-bright">New Entity</span>
+          <button onClick={onClose} className="font-mono text-[10px] text-j-dim hover:text-j-accent">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4">
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Name <span className="text-j-red">*</span></label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+              placeholder="e.g. orders"
+            />
+          </div>
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Layer</label>
+            <select
+              value={form.layer}
+              onChange={(e) => setForm((f) => ({ ...f, layer: e.target.value }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright focus:outline-none focus:border-j-accent"
+            >
+              {['bronze', 'silver', 'gold'].map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Description</label>
+            <input
+              type="text"
+              value={form.description ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+              placeholder="Describe this entity…"
+            />
+          </div>
+          <div>
+            <label className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim block mb-1">Tags</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              className="w-full bg-j-surface2 border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
+              placeholder="comma-separated tags"
+            />
+          </div>
+          {error && (
+            <div className="font-mono text-[11px] text-j-red bg-j-red-dim border border-j-red rounded px-3 py-2">{error}</div>
+          )}
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={onClose} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim border border-j-border px-3 py-1.5 rounded hover:border-j-border-b transition-colors">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors disabled:opacity-50"
+            >
+              {mutation.isPending ? 'Creating…' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CataloguePage() {
+  const { canWrite } = usePermissions()
   const [search, setSearch] = useState('')
+  const [layerFilter, setLayerFilter] = useState<'all' | 'bronze' | 'silver' | 'gold'>('all')
+  const [showCreate, setShowCreate] = useState(false)
   const { data: entities, isLoading, error, refetch } = useQuery({
     queryKey: ['entities'],
     queryFn: api.catalogue.list,
@@ -520,7 +649,8 @@ export default function CataloguePage() {
   })
 
   const filtered = (entities ?? []).filter(
-    (e) => !search || e.name.toLowerCase().includes(search.toLowerCase()) || (e.description ?? '').toLowerCase().includes(search.toLowerCase()),
+    (e) => (layerFilter === 'all' || e.layer === layerFilter) &&
+           (!search || e.name.toLowerCase().includes(search.toLowerCase())),
   )
 
   const layers = ['bronze', 'silver', 'gold'] as const
@@ -528,31 +658,47 @@ export default function CataloguePage() {
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-j-bg">
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-5 pb-4 border-b border-j-border">
-        <div>
-          <div className="font-mono text-[10px] text-j-dim tracking-[0.18em] uppercase mb-1">Catalogue</div>
-          <h2 className="text-j-bright font-semibold">Data Catalogue</h2>
+      <PageHeader label="Catalogue" title="Data Catalogue">
+        <input
+          type="text"
+          placeholder="filter entities…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="font-mono text-[11px] bg-j-surface border border-j-border rounded px-2.5 py-1.5 text-j-bright placeholder-j-dim focus:outline-none focus:border-j-accent w-40"
+        />
+        <div className="flex items-center gap-1">
+          {(['all', 'bronze', 'silver', 'gold'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setLayerFilter(s)}
+              className={`font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 py-1.5 rounded border transition-colors
+                ${layerFilter === s
+                  ? 'border-j-accent text-j-accent bg-j-surface2'
+                  : 'border-j-border text-j-dim hover:border-j-accent hover:text-j-accent'
+                }`}
+            >
+              {s}
+            </button>
+          ))}
         </div>
         <button onClick={() => refetch()} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors">
           Refresh
         </button>
-      </div>
-
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="search entities…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full mb-6 px-3 py-2.5 font-mono text-sm bg-j-surface border border-j-border text-j-text rounded placeholder-j-dim focus:outline-none focus:border-j-accent transition-colors"
-      />
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
+          >
+            + New
+          </button>
+        )}
+      </PageHeader>
 
       {isLoading && <p className="font-mono text-[11px] text-j-dim text-center py-16">loading catalogue…</p>}
       {error && <div className="px-4 py-3 rounded border border-j-red-dim bg-j-red-dim font-mono text-xs text-j-red">{error instanceof Error ? error.message : 'error'}</div>}
       {!isLoading && !error && filtered.length === 0 && (
         <p className="font-mono text-[11px] text-j-dim text-center py-16">
-          {search ? 'no entities match' : 'no entities in catalogue yet — run make seed'}
+          {layerFilter !== 'all' ? `no ${layerFilter} entities` : 'no entities in catalogue yet — run make seed'}
         </p>
       )}
 
@@ -575,6 +721,8 @@ export default function CataloguePage() {
           </div>
         )
       })}
+
+      {showCreate && <CreateEntityModal onClose={() => setShowCreate(false)} />}
     </div>
   )
 }

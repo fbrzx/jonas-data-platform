@@ -19,6 +19,7 @@ _MIGRATIONS = [
     "006_invite.sql",
     "007_trigger_mode.sql",
     "008_agent_memory.sql",
+    "009_unique_entity_name.sql",
 ]
 
 _ORDERS_JSON_TRANSFORM_SQL = """CREATE OR REPLACE TABLE silver.orders_cleaned AS

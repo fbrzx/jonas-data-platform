@@ -45,6 +45,17 @@ def get_entity(entity_id: str, tenant_id: str) -> dict[str, Any] | None:
 
 def create_entity(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     conn = get_conn()
+    name = data["name"]
+    layer = data.get("layer", "bronze")
+
+    # Prevent duplicate entity names within the same tenant + layer
+    dup = conn.execute(
+        "SELECT id FROM catalogue.entity WHERE tenant_id = ? AND name = ? AND layer = ?",
+        [tenant_id, name, layer],
+    ).fetchone()
+    if dup:
+        raise ValueError(f"Entity '{name}' already exists in {layer} layer")
+
     entity_id = str(uuid.uuid4())
     now = _now()
     conn.execute(
@@ -56,9 +67,9 @@ def create_entity(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
         [
             entity_id,
             tenant_id,
-            data["name"],
+            name,
             data.get("description", ""),
-            data.get("layer", "bronze"),
+            layer,
             json.dumps(data.get("tags", [])),
             json.dumps(data.get("meta", data.get("metadata", {}))),
             now,
@@ -276,9 +287,7 @@ def build_catalogue_context(tenant_id: str, role: str) -> str:
     return _build(tenant_id, role)
 
 
-def _build_catalogue_context_legacy(
-    tenant_id: str, role: str
-) -> str:
+def _build_catalogue_context_legacy(tenant_id: str, role: str) -> str:
     """Original implementation — kept temporarily, not called."""
     entities = get_accessible_entities(tenant_id, role)
 

@@ -46,7 +46,10 @@ async def get_entity(entity_id: UUID, request: Request) -> dict[str, Any]:
 async def create_entity(body: EntityCreate, request: Request) -> dict[str, Any]:
     user = _user(request)
     require_permission(user, Resource.CATALOGUE, Action.WRITE)
-    result = service.create_entity(body.model_dump(), _tenant(request))
+    try:
+        result = service.create_entity(body.model_dump(), _tenant(request))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     write_audit(
         tenant_id=_tenant(request),
         user_id=user.get("user_id"),

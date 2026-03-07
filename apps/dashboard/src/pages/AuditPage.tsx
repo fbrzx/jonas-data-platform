@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, type AuditJob, type AuditLog } from '../lib/api'
+import PageHeader from '../components/PageHeader'
 
 // ── DataPager ─────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ function fmtDate(s?: string) {
   return new Date(s).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function JobsTab() {
+function JobsTab({ search }: { search: string }) {
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 25
 
@@ -73,7 +74,10 @@ function JobsTab() {
   if (error)
     return <p className="font-mono text-xs text-j-red py-4">Error: {String(error)}</p>
 
-  const jobs: AuditJob[] = data?.jobs ?? []
+  const q = search.toLowerCase()
+  const jobs: AuditJob[] = (data?.jobs ?? []).filter(
+    (j) => !q || j.job_name.toLowerCase().includes(q) || j.job_type.toLowerCase().includes(q) || j.status.toLowerCase().includes(q),
+  )
 
   return (
     <div>
@@ -123,7 +127,7 @@ function JobsTab() {
 const ACTION_OPTIONS = ['', 'create', 'update', 'delete', 'approve', 'reject', 'execute', 'ingest']
 const ENTITY_OPTIONS = ['', 'entity', 'field', 'transform', 'connector', 'permission']
 
-function LogsTab() {
+function LogsTab({ search }: { search: string }) {
   const [page, setPage] = useState(1)
   const [action, setAction] = useState('')
   const [entityType, setEntityType] = useState('')
@@ -139,7 +143,10 @@ function LogsTab() {
   if (error)
     return <p className="font-mono text-xs text-j-red py-4">Error: {String(error)}</p>
 
-  const logs: AuditLog[] = data?.logs ?? []
+  const q = search.toLowerCase()
+  const logs: AuditLog[] = (data?.logs ?? []).filter(
+    (l) => !q || l.action.toLowerCase().includes(q) || l.resource_type.toLowerCase().includes(q) || (l.user_id ?? '').toLowerCase().includes(q) || (l.detail ?? '').toLowerCase().includes(q),
+  )
 
   return (
     <div>
@@ -232,38 +239,36 @@ type Tab = 'jobs' | 'logs'
 
 export default function AuditPage() {
   const [tab, setTab] = useState<Tab>('jobs')
+  const [search, setSearch] = useState('')
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-j-bg">
-      {/* Header */}
-      <div className="px-6 py-3.5 border-b border-j-border bg-j-surface grid-bg shrink-0 flex items-center justify-between">
-        <div>
-          <span className="font-mono text-[11px] font-medium tracking-[0.15em] uppercase text-j-accent">
-            Audit
-          </span>
-          <span className="font-mono text-[11px] text-j-dim ml-3">Jobs and change history</span>
-        </div>
-        <div className="flex gap-1">
+    <div className="flex-1 overflow-auto p-6 bg-j-bg">
+      <PageHeader label="Audit" title="Jobs & Change History">
+        <input
+          type="text"
+          placeholder="search…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="font-mono text-[11px] bg-j-surface border border-j-border rounded px-2.5 py-1.5 text-j-bright placeholder-j-dim focus:outline-none focus:border-j-accent w-40"
+        />
+        <div className="flex items-center gap-1">
           {(['jobs', 'logs'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-3 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border transition-colors ${
+              className={`font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 py-1.5 rounded border transition-colors ${
                 tab === t
-                  ? 'bg-j-accent-dim text-j-accent border-j-accent'
-                  : 'bg-j-surface2 text-j-dim border-j-border hover:border-j-accent hover:text-j-accent'
+                  ? 'border-j-accent text-j-accent bg-j-surface2'
+                  : 'border-j-border text-j-dim hover:border-j-accent hover:text-j-accent'
               }`}
             >
               {t}
             </button>
           ))}
         </div>
-      </div>
+      </PageHeader>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        {tab === 'jobs' ? <JobsTab /> : <LogsTab />}
-      </div>
+      {tab === 'jobs' ? <JobsTab search={search} /> : <LogsTab search={search} />}
     </div>
   )
 }

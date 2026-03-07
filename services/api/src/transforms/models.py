@@ -37,7 +37,7 @@ class TransformExecuteResponse(BaseModel):
 class TransformUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    sql: str | None = None           # only respected when status=draft
+    sql: str | None = None  # only respected when status=draft
     source_layer: str | None = None  # only respected when status=draft
     target_layer: str | None = None  # only respected when status=draft
     tags: list[str] | None = None

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Transform, type ExecuteResult, type TransformCreate, type TransformUpdate } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
+import PageHeader from '../components/PageHeader'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -264,54 +265,66 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
     mutationFn: () => api.transforms.execute(transform.id),
     onSuccess: (r) => { setExecResult(r); qc.invalidateQueries({ queryKey: ['transforms'] }) },
   })
-  const busy = approveMut.isPending || executeMut.isPending
+  const deleteMut = useMutation({
+    mutationFn: () => api.transforms.delete(transform.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['transforms'] }),
+  })
+  const busy = approveMut.isPending || executeMut.isPending || deleteMut.isPending
 
   return (
     <>
       <div className="border border-j-border rounded bg-j-surface overflow-hidden">
-        <div className="px-4 py-3 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-j-bright font-medium">{transform.name}</span>
-              <StatusBadge status={transform.status} />
-              <LayerArrow from={transform.source_layer} to={transform.target_layer} />
-            </div>
-            {transform.description && (
-              <p className="font-mono text-[11px] text-j-dim mt-0.5">{transform.description}</p>
-            )}
-            <p className="font-mono text-[10px] text-j-dim mt-1.5">
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="font-mono text-j-bright font-medium truncate">{transform.name}</span>
+            <StatusBadge status={transform.status} />
+            <LayerArrow from={transform.source_layer} to={transform.target_layer} />
+          </div>
+          {transform.description && (
+            <p className="font-mono text-[11px] text-j-dim mt-0.5 line-clamp-2">{transform.description}</p>
+          )}
+          <div className="flex items-center justify-between gap-2 flex-wrap mt-2">
+            <p className="font-mono text-[10px] text-j-dim">
               {transform.created_by}
               {transform.approved_by && <span> · approved by {transform.approved_by}</span>}
               <span className="ml-2">{new Date(transform.created_at).toLocaleDateString()}</span>
             </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            {canEdit && (
-              <button onClick={() => setEditOpen(true)}
-                className="px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-border text-j-dim hover:border-j-accent hover:text-j-accent disabled:opacity-30 transition-colors">
-                Edit
-              </button>
-            )}
-            {canApprove && isDraft && (
-              <>
-                <button disabled={busy} onClick={() => approveMut.mutate('approve')}
-                  className="px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-green bg-j-green-dim text-j-green hover:bg-j-green hover:text-j-bg disabled:opacity-30 transition-colors">
-                  Approve
+            {/* Actions */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {canEdit && (
+                <button onClick={() => setEditOpen(true)}
+                  className="px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-border text-j-dim hover:border-j-accent hover:text-j-accent disabled:opacity-30 transition-colors">
+                  Edit
                 </button>
-                <button disabled={busy} onClick={() => approveMut.mutate('reject')}
-                  className="px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-red bg-j-red-dim text-j-red hover:bg-j-red hover:text-j-bg disabled:opacity-30 transition-colors">
-                  Reject
+              )}
+              {canApprove && isDraft && (
+                <>
+                  <button disabled={busy} onClick={() => approveMut.mutate('approve')}
+                    className="px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-green bg-j-green-dim text-j-green hover:bg-j-green hover:text-j-bg disabled:opacity-30 transition-colors">
+                    Approve
+                  </button>
+                  <button disabled={busy} onClick={() => approveMut.mutate('reject')}
+                    className="px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-red bg-j-red-dim text-j-red hover:bg-j-red hover:text-j-bg disabled:opacity-30 transition-colors">
+                    Reject
+                  </button>
+                </>
+              )}
+              {canApprove && transform.status === 'approved' && (
+                <button disabled={busy} onClick={() => executeMut.mutate()}
+                  className="px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-accent bg-j-accent-dim text-j-accent hover:bg-j-accent hover:text-j-bg disabled:opacity-30 transition-colors">
+                  {executeMut.isPending ? 'running…' : 'Execute'}
                 </button>
-              </>
-            )}
-            {canApprove && transform.status === 'approved' && (
-              <button disabled={busy} onClick={() => executeMut.mutate()}
-                className="px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-accent bg-j-accent-dim text-j-accent hover:bg-j-accent hover:text-j-bg disabled:opacity-30 transition-colors">
-                {executeMut.isPending ? 'running…' : 'Execute'}
-              </button>
-            )}
+              )}
+              {canAdmin && (
+                <button disabled={busy} onClick={async () => {
+                  if (!confirm(`Delete transform "${transform.name}"?`)) return
+                  deleteMut.mutate()
+                }}
+                  className="px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-red/40 text-j-red/60 hover:border-j-red hover:text-j-red disabled:opacity-30 transition-colors">
+                  {deleteMut.isPending ? '…' : '✕'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -353,6 +366,7 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
 
 export default function TransformsPage() {
   const { canWrite, canApprove, canAdmin } = usePermissions()
+  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showCreate, setShowCreate] = useState(false)
 
@@ -362,46 +376,45 @@ export default function TransformsPage() {
     staleTime: 30_000,
   })
 
-  const filtered = (transforms ?? []).filter((t) => statusFilter === 'all' || t.status === statusFilter)
+  const filtered = (transforms ?? []).filter((t) =>
+    (statusFilter === 'all' || t.status === statusFilter) &&
+    (!search || t.name.toLowerCase().includes(search.toLowerCase())),
+  )
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-j-bg">
-      <div className="flex items-center justify-between mb-5 pb-4 border-b border-j-border">
-        <div>
-          <div className="font-mono text-[10px] text-j-dim tracking-[0.18em] uppercase mb-1">Transforms</div>
-          <h2 className="text-j-bright font-semibold">SQL Transforms</h2>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => refetch()} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors">
-            Refresh
-          </button>
-          {canWrite && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
-            >
-              + New
+      <PageHeader label="Transforms" title="SQL Transforms">
+        <input
+          type="text"
+          placeholder="filter transforms…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="font-mono text-[11px] bg-j-surface border border-j-border rounded px-2.5 py-1.5 text-j-bright placeholder-j-dim focus:outline-none focus:border-j-accent w-40"
+        />
+        <div className="flex items-center gap-1">
+          {['all', 'draft', 'approved'].map((s) => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`font-mono text-[10px] tracking-[0.08em] uppercase px-2.5 py-1.5 rounded border transition-colors ${
+                statusFilter === s
+                  ? 'border-j-accent text-j-accent bg-j-surface2'
+                  : 'border-j-border text-j-dim hover:border-j-accent hover:text-j-accent'
+              }`}>
+              {s}
             </button>
-          )}
+          ))}
         </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-2 mb-6">
-        {['all', 'draft', 'approved', 'rejected'].map((s) => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] uppercase rounded border transition-colors ${
-              statusFilter === s
-                ? 'bg-j-surface2 text-j-bright border-j-border-b'
-                : 'text-j-dim border-j-border hover:border-j-border-b hover:text-j-text'
-            }`}>
-            {s}
+        <button onClick={() => refetch()} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors">
+          Refresh
+        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-accent border border-j-accent px-3 py-1.5 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
+          >
+            + New
           </button>
-        ))}
-        {!canWrite && (
-          <span className="ml-auto font-mono text-[10px] text-j-dim">viewer · read-only</span>
         )}
-      </div>
+      </PageHeader>
 
       {isLoading && <p className="font-mono text-[11px] text-j-dim text-center py-16">loading transforms…</p>}
       {error && <div className="px-4 py-3 rounded border border-j-red-dim bg-j-red-dim font-mono text-xs text-j-red">{error instanceof Error ? error.message : 'error'}</div>}
