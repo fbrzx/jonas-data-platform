@@ -23,6 +23,8 @@ Before writing any code, read these docs in order:
 - Phase 4 complete: connectors rename, discover_api, scheduler, audit page, jonas-form
 - Phase 5 complete: JWT auth, tenant config/users, invite-by-email, schema-per-tenant
 - Phase 6 complete: event-driven transforms, agent memory, code refactoring, JSON skills
+- Phase 7 partial: RBAC 5-role model, configurable CORS, tenant isolation tests
+- Phase 8 partial: audit stats endpoint, dashboard activity chart
 
 ## Phase 1 Status (DONE)
 
@@ -102,6 +104,39 @@ Migrations: `db/007_trigger_mode.sql`, `db/008_agent_memory.sql`
 9. ✅ **Schema-per-tenant** — `bronze_{tenant_id}`, `silver_{tenant_id}`, `gold_{tenant_id}` schemas; `src/db/tenant_schemas.py` with `layer_schema()`, `inject_tenant_schemas()`, `provision_tenant_schemas()`; all ingest/catalogue/transform/agent service layers updated; schemas provisioned for all tenants on bootstrap
 10. ✅ **Invite-by-email** — `platform.invite` table (migration `006_invite.sql`); `POST /api/v1/tenant/users/invite` (email+role only); `POST /api/v1/auth/accept-invite` (token+name+password); Mailpit in docker-compose; `AcceptInvitePage.tsx`; invite modal updated to email-only flow
 11. ✅ **MotherDuck** — already supported via `MOTHERDUCK_TOKEN` env; schema-per-tenant approach works identically; database-per-tenant path deferred to Phase 7
+
+## Phase 7 Status (IN PROGRESS)
+
+> Security hardening
+
+1. ✅ **5-tier RBAC model** — `auth/permissions.py` now defines all five roles: `owner > admin > engineer > analyst > viewer`
+   - `engineer`: approve transforms/connectors/catalogue, no user admin
+   - `owner`: all admin permissions + `APPROVE` on `USER` resource (tenant super-admin)
+   - Demo tokens: `owner-token`, `engineer-token` added alongside existing three
+   - `catalogue/service.py` `_ROLE_LAYERS` already covered owner + engineer; now enforced
+2. ✅ **Configurable CORS origins** — `CORS_ORIGINS` env var (comma-separated); defaults to `http://localhost:5173`; parsed in `main.py` instead of hardcoded
+3. ✅ **Tenant isolation integration tests** — `services/api/tests/test_tenant_isolation.py`; 13 tests proving cross-tenant reads return `None`/empty for catalogue, transforms, and connectors; all 5 role assertions verified; 18 total tests, all green
+
+Remaining Phase 7:
+- Input validation hardening (audit endpoints for injection vectors)
+- Rate limiting per endpoint (agent chat + ingest)
+- Audit log completeness (ensure every mutation is recorded)
+- Secrets at rest (connector `auth_config` encryption)
+
+## Phase 8 Status (IN PROGRESS)
+
+> Data visualisation
+
+1. ✅ **`GET /api/v1/audit/stats?days=N`** — `audit/router.py`; returns per-day connector + transform run counts (total/success/error) plus overall totals; used by dashboard chart
+2. ✅ **`ActivityChart` SVG component** — `apps/dashboard/src/components/ActivityChart.tsx`; inline SVG dual-bar chart (amber = connector runs, blue = transform runs); no extra npm dependencies; x-axis labels + legend
+3. ✅ **Dashboard activity panel** — `DashboardPage.tsx`; 14-day job activity chart between Quick actions and Recent tables; queries `/audit/stats` via tanstack-query; "view audit →" link
+4. ✅ **`AuditStats` / `AuditDayCount` TypeScript types** — added to `api.ts`; `api.audit.stats()` helper
+
+Remaining Phase 8:
+- Observable Framework / @observablehq/plot integration for richer charts
+- Entity data explorer with chart toggle in CataloguePage
+- Lineage graph upgrade (D3 force-directed / Dagre DAG)
+- Agent "Visualise" button for tabular SQL results in ChatPage
 
 ## Technical Notes
 
@@ -217,11 +252,13 @@ python scripts/seed_data.py              # generate sample data
 pytest                                    # run tests
 ```
 
-**Demo tokens (hardcoded for local dev)**
+**Demo tokens (hardcoded for local dev, DEMO_MODE=true)**
 ```
-admin-token    → role: admin   (full layer access + PII)
-analyst-token  → role: analyst (silver/gold only, PII masked)
-viewer-token   → role: viewer  (gold only, PII masked)
+owner-token    → role: owner    (tenant super-admin; all permissions incl. user approve)
+admin-token    → role: admin    (full layer access + PII; all permissions except user approve)
+engineer-token → role: engineer (approve transforms/connectors/catalogue; no user admin)
+analyst-token  → role: analyst  (silver/gold only, PII masked; read/write, no approve)
+viewer-token   → role: viewer   (gold only, PII masked; read-only)
 ```
 
 **Data volumes (local)**
