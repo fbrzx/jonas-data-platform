@@ -47,8 +47,13 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
     return Math.max(1, (v / maxVal) * INNER_H)
   }
 
-  // X-axis labels: show first, middle, last day
-  const labelIndices = [0, Math.floor(days / 2), days - 1]
+  // X-axis labels: first + two evenly-spaced interior points + last (true thirds)
+  const labelIndices = [
+    0,
+    Math.round((days - 1) / 3),
+    Math.round(2 * (days - 1) / 3),
+    days - 1,
+  ]
 
   return (
     <svg
