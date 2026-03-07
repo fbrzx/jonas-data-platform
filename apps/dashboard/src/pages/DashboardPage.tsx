@@ -179,8 +179,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Activity chart */}
-      <div className="mb-6 border border-j-border rounded bg-j-surface overflow-hidden">
+      {/* Activity chart — full-bleed: -mx-6 cancels the p-6 container padding */}
+      <div className="mb-6 -mx-6 border-y border-j-border bg-j-surface overflow-hidden">
         <div className="px-4 py-2.5 border-b border-j-border flex items-center justify-between">
           <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-j-dim">Job activity — last 14 days</span>
           <Link to="/audit" className="font-mono text-[10px] text-j-accent hover:underline">view audit →</Link>

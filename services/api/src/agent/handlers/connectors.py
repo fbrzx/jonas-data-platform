@@ -9,6 +9,7 @@ _TOOLS = {
     "discover_api",
     "ingest_webhook",
     "create_connector",
+    "trigger_connector",
 }
 
 
@@ -222,6 +223,63 @@ def handle(
                      " to find the existing one."}
                 )
             return json.dumps({"error": f"Failed to create connector: {err_msg[:200]}"})
+        return json.dumps(result, default=str)
+
+    # ── trigger_connector ─────────────────────────────────────────────────────
+    if tool_name == "trigger_connector":
+        from src.auth.permissions import Action, Resource, can
+        from src.integrations.ingest import land_api_pull
+        from src.integrations.service import get_integration
+
+        if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
+            return json.dumps(
+                {"error": f"Access denied: role '{role}' cannot trigger connectors."}
+            )
+
+        connector_id = tool_input.get("connector_id", "")
+        if not connector_id:
+            return json.dumps({"error": "connector_id is required."})
+
+        integration = get_integration(connector_id, tenant_id)
+        if not integration:
+            return json.dumps({"error": f"Connector '{connector_id}' not found."})
+        if integration.get("connector_type") != "api_pull":
+            ct = integration.get("connector_type")
+            return json.dumps(
+                {
+                    "error": (
+                        f"Connector '{integration['name']}' has type '{ct}', not 'api_pull'. "
+                        "Only api_pull connectors can be triggered. "
+                        "For webhook connectors, use ingest_webhook."
+                    )
+                }
+            )
+
+        config = integration.get("config") or {}
+        if isinstance(config, str):
+            import json as _json
+
+            try:
+                config = _json.loads(config)
+            except Exception:
+                config = {}
+        url = config.get("url", "")
+        if not url:
+            return json.dumps(
+                {"error": "Connector has no url in config — cannot trigger."}
+            )
+        headers: dict[str, str] = config.get("headers") or {}
+
+        entity_id = integration.get("target_entity_id")
+        if entity_id:
+            from src.catalogue.service import get_entity
+
+            entity = get_entity(str(entity_id), tenant_id)
+            source = str(entity["name"]) if entity else str(integration["name"])
+        else:
+            source = str(integration["name"])
+
+        result = land_api_pull(url, headers, source, tenant_id, connector_id)
         return json.dumps(result, default=str)
 
     return None

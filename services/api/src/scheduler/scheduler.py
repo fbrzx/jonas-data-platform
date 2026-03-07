@@ -11,23 +11,33 @@ import json
 import logging
 from typing import Any
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.cron import CronTrigger
+
+    _scheduler_available = True
+except ImportError:  # pragma: no cover
+    _scheduler_available = False
+    BackgroundScheduler = None  # type: ignore[assignment,misc]
+    CronTrigger = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
-scheduler = BackgroundScheduler(timezone="UTC")
+scheduler = BackgroundScheduler(timezone="UTC") if _scheduler_available else None  # type: ignore[call-arg]
 
 
 def start(app: Any) -> None:  # noqa: ARG001
     """Load active cron connectors and start the scheduler. Called from lifespan."""
+    if not _scheduler_available or scheduler is None:
+        logger.warning("[scheduler] apscheduler not installed — cron scheduling disabled")
+        return
     _reload_jobs()
     scheduler.start()
     logger.info("[scheduler] started")
 
 
 def stop() -> None:
-    if scheduler.running:
+    if scheduler is not None and scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("[scheduler] stopped")
 
@@ -36,6 +46,8 @@ def reload_connector(
     connector_id: str, cron_schedule: str | None, tenant_id: str
 ) -> None:
     """Add or remove a single connector job after a PATCH update."""
+    if not _scheduler_available or scheduler is None or CronTrigger is None:
+        return
     job_id = f"connector_{connector_id}"
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)

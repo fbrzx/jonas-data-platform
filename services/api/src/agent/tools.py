@@ -337,6 +337,27 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["name", "connector_type"],
         },
     },
+    {
+        "name": "trigger_connector",
+        "description": (
+            "Manually trigger an api_pull connector to fetch data from its configured URL "
+            "and land it into the bronze layer. "
+            "Only works for api_pull connectors. "
+            "For webhook connectors, use ingest_webhook instead. "
+            "Requires analyst role or higher. "
+            "After triggering, call get_connector_runs to verify the pull succeeded."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "connector_id": {
+                    "type": "string",
+                    "description": "UUID of the api_pull connector to trigger",
+                },
+            },
+            "required": ["connector_id"],
+        },
+    },
     # ── Transforms ───────────────────────────────────────────────────────────
     {
         "name": "list_transforms",
@@ -451,6 +472,26 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Updated list of entity IDs to watch (optional)",
+                },
+            },
+            "required": ["transform_id"],
+        },
+    },
+    {
+        "name": "execute_transform",
+        "description": (
+            "Execute an approved transform, running its SQL to move data between medallion layers. "
+            "The transform MUST have status='approved' — call list_transforms first to confirm. "
+            "If status is 'draft', tell the user it needs approval before it can run. "
+            "Requires engineer, admin, or owner role. "
+            "Returns rows_affected, duration_ms, target_table, and any errors."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "transform_id": {
+                    "type": "string",
+                    "description": "UUID of the approved transform to execute",
                 },
             },
             "required": ["transform_id"],

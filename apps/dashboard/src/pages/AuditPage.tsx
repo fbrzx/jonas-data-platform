@@ -86,7 +86,7 @@ function JobsTab({ search }: { search: string }) {
           <thead>
             <tr className="border-b border-j-border bg-j-surface2">
               {['type', 'name', 'sub-type', 'status', 'started', 'in', 'out', 'rejected'].map((h) => (
-                <th key={h} className="text-left px-3 py-2 text-j-dim tracking-[0.1em] uppercase font-medium text-[10px]">
+                <th key={h} className={`px-3 py-2 text-j-dim tracking-[0.1em] uppercase font-medium text-[10px] ${['in', 'out', 'rejected'].includes(h) ? 'text-right' : 'text-left'}`}>
                   {h}
                 </th>
               ))}

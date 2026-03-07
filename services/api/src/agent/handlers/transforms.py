@@ -6,7 +6,7 @@ from typing import Any
 
 from src.db.connection import get_conn
 
-_TOOLS = {"list_transforms", "draft_transform", "update_transform"}
+_TOOLS = {"list_transforms", "draft_transform", "update_transform", "execute_transform"}
 
 
 def _sql_error_hint(err: str) -> str:
@@ -102,7 +102,59 @@ def handle(
         if not tool_input.get("name"):
             return json.dumps({"error": "draft_transform requires 'name'."})
 
-        sql = (tool_input.get("sql") or tool_input.get("transform_sql") or "").strip()
+        # Prerequisite: confirm source table actually has data before creating the transform.
+        source_layer = tool_input.get("source_layer", "bronze")
+        sql_check = (tool_input.get("sql") or tool_input.get("transform_sql") or "").strip()
+        if sql_check:
+            # Extract the first FROM clause table name to verify data exists
+            import re as _re
+
+            from src.db.tenant_schemas import inject_tenant_schemas as _inject_prereq
+
+            from_match = _re.search(
+                r"\bFROM\s+([a-z_][a-z0-9_.]*)", sql_check, _re.IGNORECASE
+            )
+            if from_match:
+                src_table = _inject_prereq(from_match.group(1), tenant_id)
+                try:
+                    row = conn.execute(
+                        f"SELECT COUNT(*) FROM {src_table}"  # noqa: S608
+                    ).fetchone()
+                    count = int(row[0]) if row else 0
+                    if count == 0:
+                        return json.dumps(
+                            {
+                                "prerequisite_not_met": True,
+                                "error": (
+                                    f"Source table '{from_match.group(1)}' is empty — "
+                                    "no data has been ingested yet. "
+                                    "Trigger or ingest data first, then draft the transform."
+                                ),
+                                "suggested_next_steps": [
+                                    "Call list_connectors to find a connector for this table.",
+                                    "Use trigger_connector or ingest_webhook to load data.",
+                                    "Then call draft_transform again.",
+                                ],
+                            }
+                        )
+                except Exception:
+                    # Table doesn't exist yet — source data not available
+                    return json.dumps(
+                        {
+                            "prerequisite_not_met": True,
+                            "error": (
+                                f"Source table '{from_match.group(1)}' does not exist. "
+                                f"Ensure data is ingested into {source_layer} before "
+                                "drafting a transform that reads from it."
+                            ),
+                            "suggested_next_steps": [
+                                "Call list_connectors to find or create a connector.",
+                                "Ingest or trigger data, then retry draft_transform.",
+                            ],
+                        }
+                    )
+
+        sql = sql_check
         if sql:
             from src.db.tenant_schemas import inject_tenant_schemas as _inject_dry
 
@@ -123,7 +175,10 @@ def handle(
                 name = tool_input.get("name", "")
                 return json.dumps(
                     {
-                        "error": f"Transform '{name}' already exists. Use update_transform to modify it."
+                        "error": (
+                            f"Transform '{name}' already exists. "
+                            "Use update_transform to modify it."
+                        )
                     }
                 )
             return json.dumps({"error": err_msg})
@@ -155,6 +210,54 @@ def handle(
         result = update_transform(transform_id, tool_input, tenant_id)
         if not result:
             return json.dumps({"error": f"Transform '{transform_id}' not found."})
+        return json.dumps(result, default=str)
+
+    # ── execute_transform ─────────────────────────────────────────────────────
+    if tool_name == "execute_transform":
+        from src.auth.permissions import Action, Resource, can
+        from src.transforms.service import execute_transform, get_transform
+
+        if not can({"role": role}, Resource.TRANSFORM, Action.APPROVE):
+            return json.dumps(
+                {
+                    "error": (
+                        f"Access denied: role '{role}' cannot execute transforms. "
+                        "Requires engineer, admin, or owner role."
+                    )
+                }
+            )
+
+        transform_id = tool_input.get("transform_id", "")
+        if not transform_id:
+            return json.dumps({"error": "transform_id is required."})
+
+        transform = get_transform(transform_id, tenant_id)
+        if not transform:
+            return json.dumps({"error": f"Transform '{transform_id}' not found."})
+
+        status = transform.get("status")
+        if status != "approved":
+            return json.dumps(
+                {
+                    "prerequisite_not_met": True,
+                    "error": (
+                        f"Transform '{transform.get('name')}' has status '{status}' "
+                        "and cannot be executed. Only approved transforms can run."
+                    ),
+                    "suggested_next_steps": (
+                        ["Ask an engineer, admin, or owner to approve it first."]
+                        if status == "draft"
+                        else [
+                            "The transform was rejected. Update the SQL and resubmit for approval."
+                        ]
+                    ),
+                }
+            )
+
+        try:
+            result = execute_transform(transform_id, tenant_id)
+        except Exception as exc:
+            return json.dumps({"error": str(exc)})
         return json.dumps(result, default=str)
 
     return None
