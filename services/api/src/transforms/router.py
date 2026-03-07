@@ -183,7 +183,7 @@ async def lineage_graph(request: Request) -> dict[str, Any]:
         if m:
             tbl = m.group(1)
             for try_layer in [layer] + [
-                l for l in ("bronze", "silver", "gold") if l != layer
+                ly for ly in ("bronze", "silver", "gold") if ly != layer
             ]:
                 key = (try_layer, tbl)
                 if key in entity_by_layer_name:
@@ -208,7 +208,7 @@ async def lineage_graph(request: Request) -> dict[str, Any]:
         for m in re.finditer(r"(?i)\bJOIN\s+(?:\w+\.)?(\w+)", sql):
             if m.group(1) not in tables:
                 tables.append(m.group(1))
-        # For medallion pattern: prefer layer just below the target (e.g. silver for gold transforms)
+        # Medallion: prefer layer just below target (e.g. silver for gold transforms)
         layer_order = ("bronze", "silver", "gold")
         src_idx = layer_order.index(source_layer) if source_layer in layer_order else 0
         tgt_idx = (
@@ -219,14 +219,14 @@ async def lineage_graph(request: Request) -> dict[str, Any]:
         intermediates = list(reversed(layer_order[src_idx:tgt_idx]))
         seen: set[str] = set()
         all_layers: list[str] = []
-        for l in [
+        for ly in [
             *intermediates,
             source_layer,
             *[x for x in layer_order if x != target_layer],
         ]:
-            if l not in seen:
-                all_layers.append(l)
-                seen.add(l)
+            if ly not in seen:
+                all_layers.append(ly)
+                seen.add(ly)
         ids: list[str] = []
         for tbl in tables:
             for layer in all_layers:
