@@ -117,6 +117,9 @@ def land_webhook(
         }
 
     run_id = _record_run(integration_id, "success", started_at, 1, 1, 0, [])
+    from src.storage.parquet import export_bronze
+
+    export_bronze(tenant_id, source, table, conn)
     if _fire_trigger:
         fire_on_data_changed(source, "bronze", tenant_id)
     return {
@@ -188,6 +191,9 @@ def land_batch_csv(
         integration_id, status, started_at, len(rows), landed, rejected, errors
     )
     if landed > 0:
+        from src.storage.parquet import export_bronze
+
+        export_bronze(tenant_id, source, table, conn)
         fire_on_data_changed(source, "bronze", tenant_id)
     return {
         "rows_received": len(rows),

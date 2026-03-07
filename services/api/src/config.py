@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Parquet storage root (local filesystem or future cloud path)
     parquet_root: str = "data/parquet"
 
+    # Observable Framework dashboard output root
+    dashboards_root: str = "data/dashboards"
+
     # LLM provider config
     # Supported providers: openai, google, ollama, claude (anthropic)
     llm_provider: str = "ollama"
@@ -58,6 +61,11 @@ class Settings(BaseSettings):
     # CORS allowed origins — comma-separated list; defaults to local Vite dev server.
     # Example: CORS_ORIGINS=https://app.example.com,https://staging.example.com
     cors_origins: str = "http://localhost:5173"
+
+    # Connector config encryption key (Fernet, base64-encoded 32 bytes).
+    # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"  # noqa: E501
+    # If empty, connector configs are stored as plaintext (dev default).
+    connector_encrypt_key: str = ""
 
 
 settings = Settings()

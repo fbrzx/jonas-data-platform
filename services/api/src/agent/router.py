@@ -80,6 +80,8 @@ async def chat_stream(request: Request, body: ChatRequest) -> StreamingResponse:
     max_tokens = body.max_tokens
 
     def generate():
+        import json
+
         try:
             yield from service.stream_chat(
                 messages=messages,
@@ -89,9 +91,28 @@ async def chat_stream(request: Request, body: ChatRequest) -> StreamingResponse:
                 max_tokens=max_tokens,
             )
         except Exception as exc:
-            logger.exception("Agent stream error: %s", exc)
-            import json
-            yield f"data: {json.dumps({'type': 'error', 'message': 'Internal server error'})}\n\n"
+            err_str = str(exc)
+            # Extract a user-friendly message for known error categories
+            if (
+                "429" in err_str
+                or "rate limit" in err_str.lower()
+                or "usage limit" in err_str.lower()
+            ):
+                user_msg = (
+                    "LLM rate limit reached — please wait or check your API quota."
+                )
+            elif (
+                "401" in err_str
+                or "authentication" in err_str.lower()
+                or "api key" in err_str.lower()
+            ):
+                user_msg = "LLM authentication failed — check your API key in settings."
+            elif "503" in err_str or "overloaded" in err_str.lower():
+                user_msg = "LLM service unavailable — try again in a moment."
+            else:
+                user_msg = f"Agent error: {err_str[:200]}"
+            logger.error("Agent stream error: %s", err_str)
+            yield f"data: {json.dumps({'type': 'error', 'message': user_msg})}\n\n"
 
     return StreamingResponse(
         generate(),

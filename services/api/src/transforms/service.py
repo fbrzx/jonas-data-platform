@@ -300,6 +300,17 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
         "errors": errors,
     }
 
+    # Parquet backup — export target table after successful run
+    if not errors:
+        from src.db.connection import get_conn as _get_conn
+        from src.storage.parquet import export_layer
+
+        target_layer_str = str(transform.get("target_layer", "silver"))
+        target_name_only = target_table.rsplit(".", 1)[-1]
+        export_layer(
+            tenant_id, target_layer_str, target_name_only, target_table, _get_conn()
+        )
+
     # Fire on_change cascade: notify watchers of the target entity (non-blocking)
     if not errors:
         target_name_only = target_table.rsplit(".", 1)[-1]

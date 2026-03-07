@@ -6,11 +6,13 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data/db:/app/data/db          # DuckDB file
-      - ./data/parquet:/app/data/parquet # Parquet storage
+      - ./data/db:/app/data/db                   # DuckDB file
+      - ./data/parquet:/app/data/parquet         # Parquet storage
+      - ./data/dashboards:/app/data/dashboards   # Observable dashboards
     environment:
       DUCKDB_PATH: /app/data/db/jonas.duckdb
       PARQUET_ROOT: /app/data/parquet
+      DASHBOARDS_ROOT: /app/data/dashboards
       API_SECRET_KEY: ${API_SECRET_KEY:-change_me_in_dev}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
       LLM_MODEL: ${LLM_MODEL:-llama3.2}

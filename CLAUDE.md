@@ -23,8 +23,8 @@ Before writing any code, read these docs in order:
 - Phase 4 complete: connectors rename, discover_api, scheduler, audit page, jonas-form
 - Phase 5 complete: JWT auth, tenant config/users, invite-by-email, schema-per-tenant
 - Phase 6 complete: event-driven transforms, agent memory, code refactoring, JSON skills
-- Phase 7 partial: RBAC 5-role model, configurable CORS, tenant isolation tests
-- Phase 8 partial: audit stats endpoint, dashboard activity chart
+- Phase 7 complete: RBAC 5-role model, configurable CORS, tenant isolation tests, rate limiting, audit completeness, secrets-at-rest (Fernet), input validation caps
+- Phase 8 complete: audit stats/chart, DataChart in Catalogue, parquet backup, improved lineage, agent error handling, Observable dashboards with live preview
 
 ## Phase 1 Status (DONE)
 
@@ -105,38 +105,36 @@ Migrations: `db/007_trigger_mode.sql`, `db/008_agent_memory.sql`
 10. ✅ **Invite-by-email** — `platform.invite` table (migration `006_invite.sql`); `POST /api/v1/tenant/users/invite` (email+role only); `POST /api/v1/auth/accept-invite` (token+name+password); Mailpit in docker-compose; `AcceptInvitePage.tsx`; invite modal updated to email-only flow
 11. ✅ **MotherDuck** — already supported via `MOTHERDUCK_TOKEN` env; schema-per-tenant approach works identically; database-per-tenant path deferred to Phase 7
 
-## Phase 7 Status (IN PROGRESS)
+## Phase 7 Status (COMPLETE)
 
 > Security hardening
 
-1. ✅ **5-tier RBAC model** — `auth/permissions.py` now defines all five roles: `owner > admin > engineer > analyst > viewer`
-   - `engineer`: approve transforms/connectors/catalogue, no user admin
-   - `owner`: all admin permissions + `APPROVE` on `USER` resource (tenant super-admin)
-   - Demo tokens: `owner-token`, `engineer-token` added alongside existing three
-   - `catalogue/service.py` `_ROLE_LAYERS` already covered owner + engineer; now enforced
-2. ✅ **Configurable CORS origins** — `CORS_ORIGINS` env var (comma-separated); defaults to `http://localhost:5173`; parsed in `main.py` instead of hardcoded
-3. ✅ **Tenant isolation integration tests** — `services/api/tests/test_tenant_isolation.py`; 13 tests proving cross-tenant reads return `None`/empty for catalogue, transforms, and connectors; all 5 role assertions verified; 18 total tests, all green
+1. ✅ **5-tier RBAC model** — `auth/permissions.py` now defines all five roles: `owner > admin > engineer > analyst > viewer`; demo tokens: `owner-token`, `engineer-token` added
+2. ✅ **Configurable CORS origins** — `CORS_ORIGINS` env var (comma-separated); defaults to `http://localhost:5173`; parsed in `main.py`
+3. ✅ **Tenant isolation integration tests** — `services/api/tests/test_tenant_isolation.py`; 13 tests, all green
+4. ✅ **Rate limiting** — `src/limiter.py` shared SlowAPI limiter (key=user_id fallback IP); `120/minute` webhook ingest, `20/minute` batch ingest; `SlowAPIMiddleware` in `main.py`
+5. ✅ **Audit completeness** — all four ingest endpoints call `write_audit`; page_size capped at 200, days capped at 90 in audit router
+6. ✅ **Secrets at rest** — `src/security/crypto.py` (Fernet AES-128-CBC); `CONNECTOR_ENCRYPT_KEY` env var; `integrations/service.py` encrypts config on write, decrypts on read; backward-compat with plaintext
+7. ✅ **Input validation caps** — audit endpoints bound page_size (1–200) and days (1–90)
 
-Remaining Phase 7:
-- Input validation hardening (audit endpoints for injection vectors)
-- Rate limiting per endpoint (agent chat + ingest)
-- Audit log completeness (ensure every mutation is recorded)
-- Secrets at rest (connector `auth_config` encryption)
+## Phase 8 Status (COMPLETE)
 
-## Phase 8 Status (IN PROGRESS)
+> Data visualisation + Observable dashboards
 
-> Data visualisation
+1. ✅ **`GET /api/v1/audit/stats?days=N`** — `audit/router.py`; per-day connector + transform run counts (total/success/error) plus overall totals
+2. ✅ **`ActivityChart` SVG component** — `apps/dashboard/src/components/ActivityChart.tsx`; inline SVG dual-bar chart; full-bleed layout in DashboardPage (renamed "Overview")
+3. ✅ **`DataChart` Observable Plot component** — `apps/dashboard/src/components/DataChart.tsx`; auto-selects chart type (time-series / bar / scatter / histogram); table/chart toggle in CataloguePage
+4. ✅ **Parquet backup storage** — `src/storage/parquet.py`; tenant-scoped directory layout (`{tenant}/{layer}/{entity}/`); called after every ingest and transform execution; designed as future primary store
+5. ✅ **Improved lineage arrowheads** — `markerEnd` only attached when edge is visible (not on dimmed edges)
+6. ✅ **Agent error surfacing** — SSE stream catches LLM errors (429 rate limit, 401 auth, 503 overload) and returns user-friendly messages instead of generic "Internal server error"
+7. ✅ **Observable Framework dashboards** — `src/dashboards/` module; `GET/PUT/DELETE /api/v1/dashboards/{slug}`; `GET/PUT /api/v1/dashboards/_config`; agent `create_dashboard` tool generates `.md` files; `DashboardsPage.tsx` with sidebar list, edit/preview toggle, live chart rendering (Observable Plot + `@observablehq/inputs`), and shared `jonas.config.js` (API URL never in .md files)
+8. ✅ **Dashboard live preview** — `js` blocks parsed and executed in-browser; `jonasPreview()` data loader blocks fetch from API; `Plot.plot()`/`Inputs.table()` cells render real charts; import/setup blocks hidden; graceful error fallback to code display
 
-1. ✅ **`GET /api/v1/audit/stats?days=N`** — `audit/router.py`; returns per-day connector + transform run counts (total/success/error) plus overall totals; used by dashboard chart
-2. ✅ **`ActivityChart` SVG component** — `apps/dashboard/src/components/ActivityChart.tsx`; inline SVG dual-bar chart (amber = connector runs, blue = transform runs); no extra npm dependencies; x-axis labels + legend
-3. ✅ **Dashboard activity panel** — `DashboardPage.tsx`; 14-day job activity chart between Quick actions and Recent tables; queries `/audit/stats` via tanstack-query; "view audit →" link
-4. ✅ **`AuditStats` / `AuditDayCount` TypeScript types** — added to `api.ts`; `api.audit.stats()` helper
-
-Remaining Phase 8:
-- Observable Framework / @observablehq/plot integration for richer charts
-- Entity data explorer with chart toggle in CataloguePage
-- Lineage graph upgrade (D3 force-directed / Dagre DAG)
-- Agent "Visualise" button for tabular SQL results in ChatPage
+Key files:
+- `services/api/src/dashboards/service.py` — file CRUD, config read/write
+- `services/api/src/dashboards/router.py` — REST endpoints
+- `services/api/src/agent/handlers/dashboards.py` — `create_dashboard` tool handler + `jonas.config.js` template
+- `apps/dashboard/src/pages/DashboardsPage.tsx` — list, editor, live preview renderer
 
 ## Technical Notes
 

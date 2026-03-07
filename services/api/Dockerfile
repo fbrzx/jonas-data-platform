@@ -36,7 +36,7 @@ COPY services/api/src/ src/
 COPY db/ db/
 
 # Data directories (overridden by volume mounts)
-RUN mkdir -p /app/data/db /app/data/parquet \
+RUN mkdir -p /app/data/db /app/data/parquet /app/data/dashboards \
  && chown -R appuser:appgroup /app
 
 USER appuser

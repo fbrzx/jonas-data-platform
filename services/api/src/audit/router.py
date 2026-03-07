@@ -32,6 +32,8 @@ async def list_jobs(
     page: int = 1,
     page_size: int = 50,
 ) -> dict[str, Any]:
+    page = max(1, page)
+    page_size = max(1, min(page_size, 200))
     """Unified view of connector_run + transform_run, newest first."""
     require_permission(_user(request), Resource.INTEGRATION, Action.READ)
     tenant_id = _tenant(request)
@@ -114,6 +116,8 @@ async def list_logs(
     require_permission(_user(request), Resource.INTEGRATION, Action.READ)
     tenant_id = _tenant(request)
     conn = get_conn()
+    page = max(1, page)
+    page_size = max(1, min(page_size, 200))
     offset = (page - 1) * page_size
 
     filters: list[str] = ["tenant_id = ?"]
@@ -149,12 +153,14 @@ async def get_stats(
 ) -> dict[str, Any]:
     """Time-series summary of job activity for the past N days.
 
+
     Returns daily counts for connector runs and transform runs, plus
     overall totals — used to populate dashboard activity charts.
     """
     require_permission(_user(request), Resource.INTEGRATION, Action.READ)
     tenant_id = _tenant(request)
     conn = get_conn()
+    days = max(1, min(days, 90))
 
     # Daily connector run counts
     connector_rows = conn.execute(

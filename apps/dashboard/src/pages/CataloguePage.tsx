@@ -4,6 +4,7 @@ import { api, type Entity, type EntityField, type PreviewResult, type EntityCrea
 import { usePermissions } from '../lib/permissions'
 import { useToast } from '../lib/toast'
 import PageHeader from '../components/PageHeader'
+import DataChart from '../components/DataChart'
 
 // ── Layer config ──────────────────────────────────────────────────────────────
 
@@ -406,6 +407,7 @@ function DataGrid({ result }: { result: PreviewResult }) {
 function EntityRow({ entity }: { entity: Entity }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'fields' | 'data'>('fields')
+  const [dataView, setDataView] = useState<'table' | 'chart'>('table')
   const [editOpen, setEditOpen] = useState(false)
   const { canWrite, canAdmin } = usePermissions()
   const qc = useQueryClient()
@@ -528,9 +530,37 @@ function EntityRow({ entity }: { entity: Entity }) {
             {tab === 'data' && (
               previewLoading
                 ? <p className="font-mono text-[11px] text-j-dim px-4 py-3">loading preview…</p>
-                : preview
-                  ? <DataGrid result={preview} />
-                  : <p className="font-mono text-[11px] text-j-dim px-4 py-3">no data</p>
+                : preview && !preview.error && preview.rows.length > 0
+                  ? (
+                    <>
+                      {/* table / chart toggle */}
+                      <div className="flex items-center gap-1 px-4 py-2 border-b border-j-border">
+                        {(['table', 'chart'] as const).map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setDataView(v)}
+                            className={`px-2 py-0.5 font-mono text-[10px] rounded border transition-colors ${
+                              dataView === v
+                                ? 'border-j-accent text-j-accent bg-j-accent-dim'
+                                : 'border-j-border text-j-dim hover:text-j-text'
+                            }`}
+                          >
+                            {v === 'table' ? '⊞ table' : '▲ chart'}
+                          </button>
+                        ))}
+                        <span className="ml-auto font-mono text-[10px] text-j-dim">
+                          {preview.count} row{preview.count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      {dataView === 'table'
+                        ? <DataGrid result={preview} />
+                        : <div className="px-4 py-3">
+                            <DataChart columns={preview.columns} rows={preview.rows} />
+                          </div>
+                      }
+                    </>
+                  )
+                  : <DataGrid result={preview ?? { columns: [], rows: [], count: 0, pii_masked: false, pii_fields: [] }} />
             )}
           </div>
         )}

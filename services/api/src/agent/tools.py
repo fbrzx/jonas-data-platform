@@ -497,6 +497,104 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["transform_id"],
         },
     },
+    # ── Dashboards ───────────────────────────────────────────────────────────
+    {
+        "name": "create_dashboard",
+        "description": (
+            "Generate an Observable Framework dashboard (.md file) for one or more entities. "
+            "The dashboard is written to data/dashboards/{tenant}/{slug}.md and can be "
+            "opened and edited directly by analysts. "
+            "Call describe_entity first for each entity to understand the schema, then call "
+            "this tool with the entity details. "
+            "Returns the file path and a summary of the charts generated."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": "Filename slug (snake_case, no extension), e.g. 'planet_analysis'",  # noqa: E501
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Dashboard title shown as the page heading",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "One-sentence description of what the dashboard shows",
+                },
+                "entities": {
+                    "type": "array",
+                    "description": "Entities to visualise — one entry per entity",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "layer": {
+                                "type": "string",
+                                "enum": ["bronze", "silver", "gold"],
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Entity table name (snake_case)",
+                            },
+                            "fields": {
+                                "type": "array",
+                                "description": "Field definitions from describe_entity",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "data_type": {"type": "string"},
+                                        "is_pii": {"type": "boolean"},
+                                    },
+                                },
+                            },
+                            "charts": {
+                                "type": "array",
+                                "description": "Chart specs to include for this entity",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "bar",
+                                                "line",
+                                                "scatter",
+                                                "histogram",
+                                                "table",
+                                            ],
+                                        },
+                                        "title": {"type": "string"},
+                                        "x": {
+                                            "type": "string",
+                                            "description": "X-axis field",
+                                        },
+                                        "y": {
+                                            "type": "string",
+                                            "description": "Y-axis field",
+                                        },
+                                        "color": {
+                                            "type": "string",
+                                            "description": "Color-by field (optional)",
+                                        },
+                                        "sort": {
+                                            "type": "string",
+                                            "enum": ["asc", "desc", "none"],
+                                            "default": "desc",
+                                        },
+                                    },
+                                    "required": ["type", "title"],
+                                },
+                            },
+                        },
+                        "required": ["layer", "name", "fields"],
+                    },
+                },
+            },
+            "required": ["slug", "title", "entities"],
+        },
+    },
     # ── Memory ────────────────────────────────────────────────────────────────
     {
         "name": "save_memory",

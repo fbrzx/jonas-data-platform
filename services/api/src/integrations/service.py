@@ -6,10 +6,18 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.db.connection import get_conn
+from src.security.crypto import decrypt_config, encrypt_config
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _decrypt_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Decrypt config field in a connector row if it was encrypted at rest."""
+    if row.get("config"):
+        row["config"] = decrypt_config(str(row["config"]))
+    return row
 
 
 def list_integrations(tenant_id: str) -> list[dict[str, Any]]:
@@ -18,7 +26,7 @@ def list_integrations(tenant_id: str) -> list[dict[str, Any]]:
         "SELECT * FROM integrations.connector WHERE tenant_id = ?", [tenant_id]
     ).fetchall()
     cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
-    return [dict(zip(cols, row)) for row in rows]
+    return [_decrypt_row(dict(zip(cols, row))) for row in rows]
 
 
 def get_integration(integration_id: str, tenant_id: str) -> dict[str, Any] | None:
@@ -30,13 +38,14 @@ def get_integration(integration_id: str, tenant_id: str) -> dict[str, Any] | Non
     if not row:
         return None
     cols = [d[0] for d in conn.description]  # type: ignore[union-attr]
-    return dict(zip(cols, row))
+    return _decrypt_row(dict(zip(cols, row)))
 
 
 def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     conn = get_conn()
     integration_id = str(uuid.uuid4())
     now = _now()
+    raw_config = encrypt_config(json.dumps(data.get("config", {})))
     conn.execute(
         """
         INSERT INTO integrations.connector
@@ -50,7 +59,7 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
             data["name"],
             data.get("description", ""),
             data["connector_type"],
-            json.dumps(data.get("config", {})),
+            raw_config,
             json.dumps(data.get("tags", [])),
             data.get("entity_id"),
             now,
@@ -80,9 +89,11 @@ def update_integration(
     for k, v in data.items():
         if v is None:
             continue
-        db_updates[k] = (
-            json.dumps(v) if k in _JSON_COLUMNS and not isinstance(v, str) else v
-        )
+        if k in _JSON_COLUMNS and not isinstance(v, str):
+            serialised = json.dumps(v)
+            db_updates[k] = encrypt_config(serialised) if k == "config" else serialised
+        else:
+            db_updates[k] = v
 
     if not db_updates:
         return existing

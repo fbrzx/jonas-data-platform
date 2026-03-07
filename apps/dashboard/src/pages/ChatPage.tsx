@@ -1,5 +1,142 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { api, type ChatMessage } from '../lib/api'
+import DataChart, { type PreviewRow } from '../components/DataChart'
+
+// ── Markdown-table parser ─────────────────────────────────────────────────────
+
+function parseMarkdownTable(
+  text: string,
+): { columns: string[]; rows: PreviewRow[] } | null {
+  const lines = text.trim().split('\n').filter((l) => l.trim())
+  if (lines.length < 3) return null
+  // Second line must be a separator: |---|---|
+  if (!/^\|[-:| ]+\|$/.test(lines[1].trim())) return null
+
+  const parseRow = (line: string) =>
+    line
+      .trim()
+      .replace(/^\||\|$/g, '')
+      .split('|')
+      .map((s) => s.trim())
+
+  const columns = parseRow(lines[0])
+  const rows = lines
+    .slice(2)
+    .filter((l) => l.trim().startsWith('|'))
+    .map((line) => {
+      const vals = parseRow(line)
+      return Object.fromEntries(columns.map((col, i) => [col, vals[i] ?? '']))
+    })
+
+  if (!columns.length || !rows.length) return null
+  return { columns, rows }
+}
+
+// Split a text block into table and non-table segments
+function splitAtTables(
+  text: string,
+): Array<{ type: 'text' | 'table'; content: string }> {
+  const lines = text.split('\n')
+  const parts: Array<{ type: 'text' | 'table'; content: string }> = []
+  let i = 0
+  const textBuf: string[] = []
+
+  while (i < lines.length) {
+    const cur  = lines[i].trim()
+    const next = lines[i + 1]?.trim() ?? ''
+    if (cur.startsWith('|') && /^\|[-:| ]+\|$/.test(next)) {
+      if (textBuf.length) {
+        parts.push({ type: 'text', content: textBuf.join('\n') })
+        textBuf.length = 0
+      }
+      const tableBuf: string[] = []
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        tableBuf.push(lines[i])
+        i++
+      }
+      parts.push({ type: 'table', content: tableBuf.join('\n') })
+    } else {
+      textBuf.push(lines[i])
+      i++
+    }
+  }
+
+  if (textBuf.length) parts.push({ type: 'text', content: textBuf.join('\n') })
+  return parts
+}
+
+// ── Table Visualise block ─────────────────────────────────────────────────────
+
+function TableVisualise({ text }: { text: string }) {
+  const [showChart, setShowChart] = useState(false)
+  const parsed = useMemo(() => parseMarkdownTable(text), [text])
+
+  if (!parsed) {
+    return <InlineText text={text} />
+  }
+
+  return (
+    <div className="my-3">
+      {/* Toggle row */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-mono text-[10px] text-j-dim">
+          {parsed.columns.length} col{parsed.columns.length !== 1 ? 's' : ''} ·{' '}
+          {parsed.rows.length} row{parsed.rows.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex items-center gap-1 ml-auto">
+          {([
+            { v: false, icon: '⊞', label: 'table' },
+            { v: true,  icon: '▲', label: 'chart' },
+          ] as const).map(({ v, icon, label }) => (
+            <button
+              key={label}
+              onClick={() => setShowChart(v)}
+              className={`px-2 py-0.5 font-mono text-[10px] rounded border transition-colors ${
+                showChart === v
+                  ? 'border-j-accent text-j-accent bg-j-accent-dim'
+                  : 'border-j-border text-j-dim hover:text-j-text'
+              }`}
+            >
+              {icon} {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showChart ? (
+        <DataChart columns={parsed.columns} rows={parsed.rows} />
+      ) : (
+        <div className="overflow-x-auto rounded border border-j-border">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="border-b border-j-border bg-j-surface2">
+                {parsed.columns.map((col) => (
+                  <th
+                    key={col}
+                    className="px-3 py-1.5 text-left font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim font-medium whitespace-nowrap"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {parsed.rows.map((row, i) => (
+                <tr key={i} className="border-b border-j-border hover:bg-j-surface2 transition-colors">
+                  {parsed.columns.map((col) => (
+                    <td key={col} className="px-3 py-1.5 font-mono text-j-text whitespace-nowrap max-w-[200px] truncate" title={String(row[col])}>
+                      {String(row[col])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Jonas-form card ────────────────────────────────────────────────────────────
 
@@ -157,16 +294,27 @@ function formatInline(text: string): React.ReactNode {
   return <>{parts}</>
 }
 
+// ── renderContent ─────────────────────────────────────────────────────────────
+
+function renderTextSegment(text: string, keyPrefix: string): React.ReactNode[] {
+  return splitAtTables(text).map((part, j) =>
+    part.type === 'table'
+      ? <TableVisualise key={`${keyPrefix}-tv-${j}`} text={part.content} />
+      : <InlineText    key={`${keyPrefix}-tx-${j}`} text={part.content} />,
+  )
+}
+
 function renderContent(
   text: string,
-  onFormSubmit?: (values: Record<string, string>) => void
+  onFormSubmit?: (values: Record<string, string>) => void,
 ): React.ReactNode[] {
   const parts: React.ReactNode[] = []
   const fenceRegex = /```(\w*)\n?([\s\S]*?)```/g
   let last = 0, match: RegExpExecArray | null
   while ((match = fenceRegex.exec(text)) !== null) {
     if (match.index > last)
-      parts.push(<InlineText key={`t-${last}`} text={text.slice(last, match.index)} />)
+      parts.push(...renderTextSegment(text.slice(last, match.index), `t-${last}`))
+
     if (match[1] === 'jonas-form' && onFormSubmit) {
       try {
         const spec = JSON.parse(match[2].trim()) as JonasFormSpec
@@ -175,7 +323,7 @@ function renderContent(
             key={`f-${match.index}`}
             spec={spec}
             onSubmit={onFormSubmit}
-          />
+          />,
         )
       } catch {
         parts.push(<CodeBlock key={`c-${match.index}`} lang={match[1]} code={match[2].trimEnd()} />)
@@ -186,7 +334,7 @@ function renderContent(
     last = match.index + match[0].length
   }
   if (last < text.length)
-    parts.push(<InlineText key="t-end" text={text.slice(last)} />)
+    parts.push(...renderTextSegment(text.slice(last), 't-end'))
   return parts
 }
 
@@ -250,9 +398,9 @@ interface ChatPageProps {
 
 export default function ChatPage({ messages, setMessages, input, setInput }: ChatPageProps) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [error, setError]     = useState<string | null>(null)
+  const bottomRef              = useRef<HTMLDivElement>(null)
+  const textareaRef            = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
@@ -271,7 +419,6 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
     try {
       for await (const event of api.agent.streamChat(next)) {
         if (event.type === 'tool') {
-          // Insert a paragraph break before continuation text after a tool call
           if (streamedContent && !streamedContent.endsWith('\n')) {
             streamedContent += '\n\n'
             setMessages(prev => {
@@ -297,10 +444,7 @@ export default function ChatPage({ messages, setMessages, input, setInput }: Cha
           throw new Error(event.message ?? 'Stream error')
         }
       }
-      // If no text was streamed (e.g. pure tool call with no final text), ensure loading is off
-      if (!hasStartedText) {
-        setLoading(false)
-      }
+      if (!hasStartedText) setLoading(false)
     } catch (e) {
       setLoading(false)
       setError(e instanceof Error ? e.message : 'Unknown error')

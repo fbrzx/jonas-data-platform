@@ -6,9 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler  # type: ignore[attr-defined]
+from slowapi import _rate_limit_exceeded_handler  # type: ignore[attr-defined]
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from src.agent.router import router as agent_router
 from src.audit.router import router as audit_router
@@ -17,9 +16,11 @@ from src.auth.openapi import docs_bearer_auth
 from src.auth.router import router as auth_router
 from src.catalogue.router import router as catalogue_router
 from src.config import settings
+from src.dashboards.router import router as dashboards_router
 from src.db.connection import close_connection, init_connection
 from src.db.init import bootstrap
 from src.integrations.router import router as integrations_router
+from src.limiter import limiter
 from src.scheduler import scheduler as job_scheduler
 from src.tenant.router import router as tenant_router
 from src.transforms.router import router as transforms_router
@@ -27,15 +28,6 @@ from src.transforms.router import router as transforms_router
 logger = logging.getLogger(__name__)
 
 _WEAK_SECRET = "change_me_in_production"
-
-
-def _get_user_id(request: Request) -> str:
-    """Rate-limit key: use authenticated user_id, fall back to remote IP."""
-    user = getattr(request.state, "user", None) or {}
-    return str(user.get("user_id") or get_remote_address(request))
-
-
-limiter = Limiter(key_func=_get_user_id)
 
 
 @asynccontextmanager
@@ -121,6 +113,12 @@ app.include_router(
     tenant_router,
     prefix="/api/v1/tenant",
     tags=["tenant"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    dashboards_router,
+    prefix="/api/v1/dashboards",
+    tags=["dashboards"],
     dependencies=[Depends(docs_bearer_auth)],
 )
 

@@ -304,6 +304,17 @@ export interface AuditStats {
   }
 }
 
+export interface Dashboard {
+  slug: string
+  title: string
+  size_bytes: number
+  updated_at: string
+}
+
+export interface DashboardDetail extends Dashboard {
+  content: string
+}
+
 // ── Fetch wrapper ─────────────────────────────────────────────────────────────
 
 let _refreshing: Promise<void> | null = null
@@ -496,6 +507,18 @@ export const api = {
       }),
     revokeUser: (userId: string) =>
       request<void>(`/tenant/users/${userId}`, { method: 'DELETE' }),
+  },
+
+  dashboards: {
+    list: () => request<Dashboard[]>('/dashboards'),
+    get: (slug: string) => request<DashboardDetail>(`/dashboards/${slug}`),
+    save: (slug: string, content: string) =>
+      request<Dashboard>(`/dashboards/${slug}`, { method: 'PUT', body: JSON.stringify({ content }) }),
+    delete: (slug: string) =>
+      request<{ status: string }>(`/dashboards/${slug}`, { method: 'DELETE' }),
+    getConfig: () => request<{ content: string }>('/dashboards/_config'),
+    saveConfig: (content: string) =>
+      request<{ status: string }>('/dashboards/_config', { method: 'PUT', body: JSON.stringify({ content }) }),
   },
 
   agent: {

@@ -14,11 +14,11 @@ const LAYER = {
 type LayerKey = keyof typeof LAYER
 const LAYERS: LayerKey[] = ['bronze', 'silver', 'gold']
 
-// Edge stroke colours by layer pair
+// Edge stroke colours by layer pair — match j-* palette
 const EDGE_COLOR: Record<string, string> = {
-  'bronze-silver': '#f59e0b',
-  'silver-gold':   '#6366f1',
-  'bronze-gold':   '#22c55e',
+  'bronze-silver': '#f5a623',
+  'silver-gold':   '#4a9eff',
+  'bronze-gold':   '#2dcc7a',
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -392,24 +392,53 @@ export default function LineagePage() {
             */}
             <div ref={wrapperRef} className="relative" style={{ display: 'inline-flex', minWidth: '100%' }}>
 
-              {/* SVG connection overlay — pointer-events:none on SVG,
-                  individual <g> groups re-enable events for hover targets  */}
+              {/* SVG connection overlay */}
               <svg
                 className="absolute inset-0"
                 style={{ width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
                 aria-hidden="true"
               >
+                {/* Arrowhead markers — one per edge colour */}
+                <defs>
+                  {Object.entries(EDGE_COLOR).map(([key, color]) => (
+                    <marker
+                      key={key}
+                      id={`arrow-${key}`}
+                      viewBox="0 0 8 8"
+                      refX="7"
+                      refY="4"
+                      markerWidth="5"
+                      markerHeight="5"
+                      orient="auto"
+                    >
+                      <path d="M0,0 L8,4 L0,8 Z" fill={color} />
+                    </marker>
+                  ))}
+                  <marker
+                    id="arrow-default"
+                    viewBox="0 0 8 8"
+                    refX="7"
+                    refY="4"
+                    markerWidth="5"
+                    markerHeight="5"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L8,4 L0,8 Z" fill="#64748b" />
+                  </marker>
+                </defs>
+
                 {paths.map(({ d, midX, midY, edge, color }) => {
-                  const dimmed  = isEdgeDimmed(edge.id)
-                  const hovered = hoveredEdgeId === edge.id
-                  const isDraft = edge.status === 'draft'
-                  // Always show edges at baseline opacity; highlight connected on selection
-                  const opacity = hovered ? 1 : dimmed ? (selectedIsTraced ? 0 : 0.25) : 0.6
-                  const sw      = hovered ? 2.5 : 1.5
+                  const dimmed    = isEdgeDimmed(edge.id)
+                  const hovered   = hoveredEdgeId === edge.id
+                  const isDraft   = edge.status === 'draft'
+                  const opacity   = hovered ? 1 : dimmed ? (selectedIsTraced ? 0 : 0.2) : 0.55
+                  const sw        = hovered ? 2.5 : 1.5
+                  const colorKey  = `${edge.source_layer}-${edge.target_layer}`
+                  const markerId  = EDGE_COLOR[colorKey] ? `arrow-${colorKey}` : 'arrow-default'
 
                   return (
                     <g key={edge.id} style={{ pointerEvents: 'auto' }}>
-                      {/* Wide transparent hit area for easy hover */}
+                      {/* Wide transparent hit area */}
                       <path
                         d={d}
                         fill="none"
@@ -419,7 +448,7 @@ export default function LineagePage() {
                         onMouseEnter={() => setHoveredEdgeId(edge.id)}
                         onMouseLeave={() => setHoveredEdgeId(null)}
                       />
-                      {/* Visible path */}
+                      {/* Visible path with arrowhead — only attach marker when edge is visible */}
                       <path
                         d={d}
                         fill="none"
@@ -427,21 +456,22 @@ export default function LineagePage() {
                         strokeWidth={sw}
                         strokeDasharray={isDraft ? '5 3' : undefined}
                         strokeOpacity={opacity}
+                        markerEnd={(!dimmed || hovered) ? `url(#${markerId})` : undefined}
                         style={{ pointerEvents: 'none' }}
                       />
-                      {/* Label at curve midpoint when hovered */}
+                      {/* Hover label */}
                       {hovered && (
                         <g style={{ pointerEvents: 'none' }}>
                           <rect
-                            x={midX - edge.name.length * 3.3 - 4}
-                            y={midY - 10}
-                            width={edge.name.length * 6.6 + 8}
-                            height={14}
-                            rx={3}
-                            fill="#12121e"
+                            x={midX - edge.name.length * 3.3 - 6}
+                            y={midY - 11}
+                            width={edge.name.length * 6.6 + 12}
+                            height={16}
+                            rx={4}
+                            fill="#0a0c10"
                             stroke={color}
                             strokeWidth={0.75}
-                            opacity={0.95}
+                            opacity={0.97}
                           />
                           <text
                             x={midX}
@@ -466,9 +496,9 @@ export default function LineagePage() {
                 {LAYERS.map((layer, idx) => (
                   <Fragment key={layer}>
                     {/* Gap between columns — SVG paths route through here */}
-                    {idx > 0 && <div className="w-16 shrink-0" />}
+                    {idx > 0 && <div className="w-24 shrink-0" />}
 
-                    <div className="flex-1 min-w-[160px] max-w-[280px]">
+                    <div className="flex-1 min-w-[180px] max-w-[300px]">
                       {/* Column header */}
                       <div className={`flex items-center gap-2 py-2.5 border-b ${LAYER[layer].border} mb-3 px-1`}>
                         <span className={`w-2 h-2 rounded-full shrink-0 ${LAYER[layer].dot}`} />
