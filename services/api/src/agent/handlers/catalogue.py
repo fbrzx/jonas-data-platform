@@ -12,6 +12,7 @@ _TOOLS = {
     "infer_schema",
     "register_entity",
     "preview_entity",
+    "assign_collection",
 }
 
 # Result truncation limits (shared with query.py)
@@ -55,6 +56,7 @@ def handle(
                 "id": e["id"],
                 "name": e["name"],
                 "layer": e.get("layer"),
+                "collection": e.get("collection"),
                 "description": e.get("description", ""),
                 "field_count": len(e.get("fields", [])),
             }
@@ -269,5 +271,40 @@ def handle(
             return json.dumps(payload, default=str)
         except Exception as exc:
             return json.dumps({"error": str(exc), "entity": table_ref})
+
+    # ── assign_collection ────────────────────────────────────────────────────
+    if tool_name == "assign_collection":
+        resource_type = tool_input.get("resource_type", "")
+        resource_id = tool_input.get("resource_id", "")
+        collection = tool_input.get("collection")  # str or None
+
+        if resource_type not in ("entity", "transform", "connector"):
+            return json.dumps({"error": "resource_type must be entity, transform, or connector."})
+        if not resource_id:
+            return json.dumps({"error": "resource_id is required."})
+
+        if resource_type == "entity":
+            from src.catalogue.service import update_entity
+
+            result = update_entity(resource_id, {"collection": collection}, tenant_id)
+            if not result:
+                return json.dumps({"error": f"Entity '{resource_id}' not found."})
+            return json.dumps({"ok": True, "resource_type": "entity", "id": resource_id, "collection": collection})
+
+        if resource_type == "transform":
+            from src.transforms.service import update_transform
+
+            result = update_transform(resource_id, {"collection": collection}, tenant_id)
+            if not result:
+                return json.dumps({"error": f"Transform '{resource_id}' not found."})
+            return json.dumps({"ok": True, "resource_type": "transform", "id": resource_id, "collection": collection})
+
+        if resource_type == "connector":
+            from src.integrations.service import update_integration
+
+            result = update_integration(resource_id, {"collection": collection}, tenant_id)
+            if not result:
+                return json.dumps({"error": f"Connector '{resource_id}' not found."})
+            return json.dumps({"ok": True, "resource_type": "connector", "id": resource_id, "collection": collection})
 
     return None  # unreachable but satisfies type checker

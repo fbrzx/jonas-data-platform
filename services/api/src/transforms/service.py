@@ -83,8 +83,8 @@ def create_transform(
         INSERT INTO transforms.transform
             (id, tenant_id, name, description, source_layer, target_layer,
              transform_sql, status, created_by, tags, trigger_mode, watch_entities,
-             created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)
+             collection, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             transform_id,
@@ -98,6 +98,7 @@ def create_transform(
             json.dumps(data.get("tags", [])),
             trigger_mode,
             json.dumps(watch_entities),
+            data.get("collection"),
             now,
             now,
         ],

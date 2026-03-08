@@ -111,6 +111,10 @@ TOOLS: list[dict[str, Any]] = [
                         "required": ["name", "data_type"],
                     },
                 },
+                "collection": {
+                    "type": "string",
+                    "description": "Optional collection name to group this entity with related resources",
+                },
             },
             "required": ["name", "layer", "fields"],
         },
@@ -333,6 +337,10 @@ TOOLS: list[dict[str, Any]] = [
                     "items": {"type": "string"},
                     "description": "Optional labels for grouping (e.g. ['ecommerce', 'realtime'])",
                 },
+                "collection": {
+                    "type": "string",
+                    "description": "Optional collection name to group this connector with related resources",
+                },
             },
             "required": ["name", "connector_type"],
         },
@@ -425,6 +433,10 @@ TOOLS: list[dict[str, Any]] = [
                         "Required when trigger_mode='on_change'."
                     ),
                 },
+                "collection": {
+                    "type": "string",
+                    "description": "Optional collection name to group this transform with related resources",
+                },
             },
             "required": ["name", "sql", "source_layer", "target_layer"],
         },
@@ -472,6 +484,10 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Updated list of entity IDs to watch (optional)",
+                },
+                "collection": {
+                    "type": ["string", "null"],
+                    "description": "Collection name to assign, or null to remove",
                 },
             },
             "required": ["transform_id"],
@@ -593,6 +609,39 @@ TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["slug", "title", "entities"],
+        },
+    },
+    # ── Collections ──────────────────────────────────────────────────────────
+    {
+        "name": "assign_collection",
+        "description": (
+            "Assign or remove a collection tag on an entity, transform, or connector. "
+            "Collections are named groups that help users navigate related resources together. "
+            "Pass collection=null to remove the tag. "
+            "Examples: group all 'sales' entities + transforms + connectors under 'sales'; "
+            "assign 'iot' to sensor entities and their connectors."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "resource_type": {
+                    "type": "string",
+                    "enum": ["entity", "transform", "connector"],
+                    "description": "Type of resource to tag",
+                },
+                "resource_id": {
+                    "type": "string",
+                    "description": "UUID of the entity, transform, or connector",
+                },
+                "collection": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "Collection name to assign (e.g. 'sales', 'iot', 'marketing'). "
+                        "Pass null to remove the collection tag."
+                    ),
+                },
+            },
+            "required": ["resource_type", "resource_id", "collection"],
         },
     },
     # ── Memory ────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, type Entity, type Transform, getToken, getRoleFromToken } from '../lib/api'
 import ActivityChart from '../components/ActivityChart'
 
+
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
 function StatCard({
@@ -113,6 +114,11 @@ export default function DashboardPage() {
     queryFn: () => api.audit.stats(14),
     staleTime: 60_000,
   })
+  const { data: collections } = useQuery({
+    queryKey: ['collections'],
+    queryFn: api.collections.list,
+    staleTime: 30_000,
+  })
 
   const ents = entities ?? []
   const trns = transforms ?? []
@@ -149,7 +155,11 @@ export default function DashboardPage() {
           }`}>{role}</span>
         </div>
         <p className="font-mono text-[11px] text-j-dim mt-1">
-          tenant / acme · {ents.length} entities · {trns.length} transforms · {ints.length} integrations
+          tenant / acme
+          {collections && collections.length > 0 && (
+            <> · <Link to="/collections" className="hover:text-j-accent">{collections.length} collections</Link></>
+          )}
+          {' '}· {ents.length} entities · {trns.length} transforms · {ints.length} connectors
         </p>
       </div>
 
@@ -158,7 +168,7 @@ export default function DashboardPage() {
         <StatCard label="Bronze entities"   value={bronze}    color="text-j-amber"  border="border-j-amber" />
         <StatCard label="Silver entities"   value={silver}    color="text-j-accent" border="border-j-accent" />
         <StatCard label="Gold entities"     value={gold}      color="text-j-bright" border="border-j-bright" />
-        <StatCard label="Active integrations" value={activeInts} sub={`${ints.length} total`} color="text-j-green" border="border-j-green" />
+        <StatCard label="Active connectors" value={activeInts} sub={`${ints.length} total`} color="text-j-green" border="border-j-green" />
       </div>
 
       {/* Transform pipeline */}

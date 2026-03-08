@@ -24,6 +24,7 @@ class EntityCreate(BaseModel):
     fields: list[FieldDefinition] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    collection: str | None = None
 
 
 class EntityRead(EntityCreate):
@@ -40,3 +41,4 @@ class EntityUpdate(BaseModel):
     fields: list[FieldDefinition] | None = None
     tags: list[str] | None = None
     metadata: dict[str, Any] | None = None
+    collection: str | None = None

@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api, type Integration, type IntegrationCreate, type IntegrationUpdate, type IntegrationRun } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
 import { useToast } from '../lib/toast'
 import PageHeader from '../components/PageHeader'
+import CollectionTag from '../components/CollectionTag'
 
 // ── Cron helpers ───────────────────────────────────────────────────────────────
 
@@ -559,6 +561,9 @@ function EditConnectorModal({ connector, onClose }: { connector: Integration; on
 
 function ConnectorCard({
   connector,
+  canWrite,
+  canApprove,
+  canAdmin,
   onUpload,
   onRuns,
   onEdit,
@@ -566,6 +571,9 @@ function ConnectorCard({
   onTrigger,
 }: {
   connector: Integration
+  canWrite: boolean
+  canApprove: boolean
+  canAdmin: boolean
   onUpload: () => void
   onRuns: () => void
   onEdit: () => void
@@ -608,7 +616,9 @@ function ConnectorCard({
         <div className="flex items-start gap-3 min-w-0">
           <span className={`font-mono text-2xl leading-none mt-0.5 shrink-0 ${glyphColor}`}>{glyph}</span>
           <div className="min-w-0">
-            <div className="font-mono text-j-bright font-medium truncate">{connector.name}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-j-bright font-medium truncate">{connector.name}</span>
+            </div>
             {connector.description && (
               <p className="font-mono text-[11px] text-j-dim mt-0.5 truncate">{connector.description}</p>
             )}
@@ -685,6 +695,7 @@ function ConnectorCard({
           )}
         </div>
         <div className="flex items-center gap-1 flex-wrap">
+          {canApprove && <CollectionTag resourceType="connector" resourceId={connector.id} current={connector.collection} />}
           <button
             onClick={onRuns}
             className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-2 py-1 rounded transition-colors"
@@ -692,7 +703,7 @@ function ConnectorCard({
           >
             runs
           </button>
-          {isBatch && (
+          {isBatch && canWrite && (
             <button
               onClick={onUpload}
               className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-accent border border-j-accent px-2 py-1 rounded hover:bg-j-accent hover:text-j-bg transition-colors"
@@ -701,7 +712,7 @@ function ConnectorCard({
               upload
             </button>
           )}
-          {isApiPull && (
+          {isApiPull && canWrite && (
             <button
               onClick={onTrigger}
               className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-green border border-j-green px-2 py-1 rounded hover:bg-j-green hover:text-j-bg transition-colors"
@@ -710,20 +721,24 @@ function ConnectorCard({
               pull
             </button>
           )}
-          <button
-            onClick={onEdit}
-            className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-2 py-1 rounded transition-colors"
-            title="Edit connector"
-          >
-            edit
-          </button>
-          <button
-            onClick={onDelete}
-            className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-red/60 border border-j-border hover:border-j-red hover:text-j-red px-2 py-1 rounded transition-colors"
-            title="Delete connector"
-          >
-            ✕
-          </button>
+          {canApprove && (
+            <button
+              onClick={onEdit}
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-2 py-1 rounded transition-colors"
+              title="Edit connector"
+            >
+              edit
+            </button>
+          )}
+          {canAdmin && (
+            <button
+              onClick={onDelete}
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-j-red/60 border border-j-border hover:border-j-red hover:text-j-red px-2 py-1 rounded transition-colors"
+              title="Delete connector"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -734,12 +749,14 @@ function ConnectorCard({
 
 export default function ConnectorsPage() {
   const queryClient = useQueryClient()
-  const { canWrite } = usePermissions()
+  const { canWrite, canApprove, canAdmin } = usePermissions()
   const { toast, confirm } = useToast()
   const [showCreate, setShowCreate] = useState(false)
   const [uploadTarget, setUploadTarget] = useState<Integration | null>(null)
   const [runsTarget, setRunsTarget] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<Integration | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const collectionFilter = searchParams.get('collection')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
 
@@ -751,7 +768,8 @@ export default function ConnectorsPage() {
 
   const filteredConnectors = (connectors ?? []).filter(
     (c) => (typeFilter === 'all' || c.connector_type === typeFilter) &&
-           (!search || c.name.toLowerCase().includes(search.toLowerCase())),
+           (!search || c.name.toLowerCase().includes(search.toLowerCase())) &&
+           (!collectionFilter || c.collection === collectionFilter),
   )
 
   const deleteMutation = useMutation({
@@ -806,6 +824,12 @@ export default function ConnectorsPage() {
             </button>
           ))}
         </div>
+        {collectionFilter && (
+          <span className="flex items-center gap-1.5 font-mono text-[10px] text-j-accent border border-j-accent bg-j-accent-dim rounded px-2 py-1">
+            ◧ {collectionFilter}
+            <button onClick={() => setSearchParams({})} className="hover:text-j-bright">✕</button>
+          </span>
+        )}
         <button
           onClick={() => refetch()}
           className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors"
@@ -863,6 +887,9 @@ export default function ConnectorsPage() {
           <ConnectorCard
             key={c.id}
             connector={c}
+            canWrite={canWrite}
+            canApprove={canApprove}
+            canAdmin={canAdmin}
             onUpload={() => setUploadTarget(c)}
             onRuns={() => setRunsTarget(c.id)}
             onEdit={() => setEditTarget(c)}

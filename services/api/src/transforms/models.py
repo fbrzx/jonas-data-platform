@@ -13,6 +13,7 @@ class TransformCreate(BaseModel):
     target_layer: str = "silver"
     sql: str
     tags: list[str] = Field(default_factory=list)
+    collection: str | None = None
 
 
 class TransformRead(TransformCreate):
@@ -41,6 +42,7 @@ class TransformUpdate(BaseModel):
     source_layer: str | None = None  # only respected when status=draft
     target_layer: str | None = None  # only respected when status=draft
     tags: list[str] | None = None
+    collection: str | None = None
 
 
 class ApprovalAction(BaseModel):

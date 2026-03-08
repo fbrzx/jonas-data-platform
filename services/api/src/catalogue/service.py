@@ -61,8 +61,8 @@ def create_entity(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     conn.execute(
         """
         INSERT INTO catalogue.entity
-            (id, tenant_id, name, description, layer, tags, meta, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, tenant_id, name, description, layer, tags, meta, collection, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             entity_id,
@@ -72,6 +72,7 @@ def create_entity(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
             layer,
             json.dumps(data.get("tags", [])),
             json.dumps(data.get("meta", data.get("metadata", {}))),
+            data.get("collection"),
             now,
             now,
         ],

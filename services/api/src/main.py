@@ -122,6 +122,15 @@ app.include_router(
     dependencies=[Depends(docs_bearer_auth)],
 )
 
+from src.collections.router import router as collections_router  # noqa: E402
+
+app.include_router(
+    collections_router,
+    prefix="/api/v1/collections",
+    tags=["collections"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+
 
 @app.get("/health")
 async def health() -> dict[str, str]:

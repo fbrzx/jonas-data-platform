@@ -52,6 +52,14 @@ export const DEMO_TOKENS = [
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface Collection {
+  name: string
+  entity_count: number
+  transform_count: number
+  connector_count: number
+  total: number
+}
+
 export interface Entity {
   id: string
   tenant_id: string
@@ -60,6 +68,7 @@ export interface Entity {
   description?: string
   namespace?: string
   tags?: string
+  collection?: string | null
   created_at: string
   updated_at: string
 }
@@ -95,6 +104,7 @@ export interface Integration {
   config?: string
   target_entity_id?: string | null
   cron_schedule?: string | null
+  collection?: string | null
   created_at: string
   updated_at: string
 }
@@ -106,6 +116,7 @@ export interface IntegrationCreate {
   config?: Record<string, unknown>
   tags?: string[]
   entity_id?: string
+  collection?: string | null
 }
 
 export interface IntegrationUpdate {
@@ -116,6 +127,7 @@ export interface IntegrationUpdate {
   tags?: string[]
   entity_id?: string | null
   cron_schedule?: string | null
+  collection?: string | null
 }
 
 export interface AuditJob {
@@ -150,6 +162,7 @@ export interface TransformCreate {
   target_layer: string
   sql: string
   tags?: string[]
+  collection?: string | null
 }
 
 export interface TransformUpdate {
@@ -159,6 +172,7 @@ export interface TransformUpdate {
   source_layer?: string
   target_layer?: string
   tags?: string[]
+  collection?: string | null
 }
 
 export interface FieldUpdate {
@@ -173,12 +187,14 @@ export interface EntityCreate {
   description?: string
   layer?: string
   tags?: string[]
+  collection?: string | null
 }
 
 export interface EntityUpdate {
   name?: string
   description?: string
   tags?: string[]
+  collection?: string | null
 }
 
 export interface IngestResponse {
@@ -212,6 +228,7 @@ export interface Transform {
   status: string
   created_by?: string
   approved_by?: string
+  collection?: string | null
   created_at: string
   updated_at: string
 }
@@ -489,6 +506,10 @@ export const api = {
     },
     stats: (days = 14) =>
       request<AuditStats>(`/audit/stats?days=${days}`),
+  },
+
+  collections: {
+    list: () => request<Collection[]>('/collections'),
   },
 
   tenant: {

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { api, type Transform, type ExecuteResult, type TransformCreate, type TransformUpdate } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
 import PageHeader from '../components/PageHeader'
+import CollectionTag from '../components/CollectionTag'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -279,6 +281,7 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
             <span className="font-mono text-j-bright font-medium truncate">{transform.name}</span>
             <StatusBadge status={transform.status} />
             <LayerArrow from={transform.source_layer} to={transform.target_layer} />
+            <CollectionTag resourceType="transform" resourceId={transform.id} current={transform.collection} />
           </div>
           {transform.description && (
             <p className="font-mono text-[11px] text-j-dim mt-0.5 line-clamp-2">{transform.description}</p>
@@ -366,6 +369,8 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
 
 export default function TransformsPage() {
   const { canWrite, canApprove, canAdmin } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const collectionFilter = searchParams.get('collection')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showCreate, setShowCreate] = useState(false)
@@ -378,7 +383,8 @@ export default function TransformsPage() {
 
   const filtered = (transforms ?? []).filter((t) =>
     (statusFilter === 'all' || t.status === statusFilter) &&
-    (!search || t.name.toLowerCase().includes(search.toLowerCase())),
+    (!search || t.name.toLowerCase().includes(search.toLowerCase())) &&
+    (!collectionFilter || t.collection === collectionFilter),
   )
 
   return (
@@ -403,6 +409,12 @@ export default function TransformsPage() {
             </button>
           ))}
         </div>
+        {collectionFilter && (
+          <span className="flex items-center gap-1.5 font-mono text-[10px] text-j-accent border border-j-accent bg-j-accent-dim rounded px-2 py-1">
+            ◧ {collectionFilter}
+            <button onClick={() => setSearchParams({})} className="hover:text-j-bright">✕</button>
+          </span>
+        )}
         <button onClick={() => refetch()} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors">
           Refresh
         </button>

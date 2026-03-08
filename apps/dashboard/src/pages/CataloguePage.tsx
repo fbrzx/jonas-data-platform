@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { api, type Entity, type EntityField, type PreviewResult, type EntityCreate, type EntityUpdate, type FieldUpdate } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
 import { useToast } from '../lib/toast'
+import CollectionTag from '../components/CollectionTag'
 import PageHeader from '../components/PageHeader'
 import DataChart from '../components/DataChart'
 
@@ -473,6 +475,11 @@ function EntityRow({ entity }: { entity: Entity }) {
             </div>
           </button>
           <div className="flex items-center gap-2 shrink-0">
+            <CollectionTag
+              resourceType="entity"
+              resourceId={entity.id}
+              current={entity.collection}
+            />
             <span className="font-mono text-[10px] text-j-dim">
               {new Date(entity.created_at).toLocaleDateString()}
             </span>
@@ -669,6 +676,8 @@ function CreateEntityModal({ onClose }: { onClose: () => void }) {
 
 export default function CataloguePage() {
   const { canWrite } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const collectionFilter = searchParams.get('collection')
   const [search, setSearch] = useState('')
   const [layerFilter, setLayerFilter] = useState<'all' | 'bronze' | 'silver' | 'gold'>('all')
   const [showCreate, setShowCreate] = useState(false)
@@ -680,7 +689,8 @@ export default function CataloguePage() {
 
   const filtered = (entities ?? []).filter(
     (e) => (layerFilter === 'all' || e.layer === layerFilter) &&
-           (!search || e.name.toLowerCase().includes(search.toLowerCase())),
+           (!search || e.name.toLowerCase().includes(search.toLowerCase())) &&
+           (!collectionFilter || e.collection === collectionFilter),
   )
 
   const layers = ['bronze', 'silver', 'gold'] as const
@@ -711,6 +721,12 @@ export default function CataloguePage() {
             </button>
           ))}
         </div>
+        {collectionFilter && (
+          <span className="flex items-center gap-1.5 font-mono text-[10px] text-j-accent border border-j-accent bg-j-accent-dim rounded px-2 py-1">
+            ◧ {collectionFilter}
+            <button onClick={() => setSearchParams({})} className="hover:text-j-bright">✕</button>
+          </span>
+        )}
         <button onClick={() => refetch()} className="font-mono text-[10px] tracking-[0.1em] uppercase text-j-dim hover:text-j-accent border border-j-border hover:border-j-accent px-3 py-1.5 rounded transition-colors">
           Refresh
         </button>

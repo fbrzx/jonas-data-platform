@@ -14,13 +14,15 @@ import AcceptInvitePage from './pages/AcceptInvitePage'
 import TenantConfigPage from './pages/TenantConfigPage'
 import TenantUsersPage from './pages/TenantUsersPage'
 import DashboardsPage from './pages/DashboardsPage'
+import CollectionsPage from './pages/CollectionsPage'
 import { api, getRoleFromToken, getToken, isLoggedIn } from './lib/api'
 import type { ChatMessage } from './lib/api'
 
 const navItems = [
   { to: '/',           label: 'Overview',   glyph: '◉', adminOnly: false },
   { to: '/chat',       label: 'Chat',       glyph: '◈', adminOnly: false },
-  { to: '/catalogue',  label: 'Catalogue',  glyph: '◫', adminOnly: false },
+  { to: '/collections', label: 'Collections', glyph: '◧', adminOnly: false },
+  { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false },
   { to: '/transforms', label: 'Transforms', glyph: '⟳', adminOnly: false },
   { to: '/connectors', label: 'Connectors', glyph: '⌥', adminOnly: false },
   { to: '/lineage',    label: 'Lineage',    glyph: '⬡', adminOnly: false },
@@ -33,7 +35,8 @@ const navItems = [
 const ROUTE_LABELS: Record<string, string> = {
   '/':           'Overview',
   '/chat':       'Chat with Jonas',
-  '/catalogue':  'Catalogue',
+  '/collections': 'Collections',
+  '/catalogue':   'Catalogue',
   '/transforms': 'Transforms',
   '/connectors': 'Connectors',
   '/lineage':    'Data Lineage',
@@ -248,7 +251,8 @@ export default function App() {
                       setInput={setChatInput}
                     />
                   } />
-                  <Route path="catalogue"  element={<CataloguePage />} />
+                  <Route path="collections" element={<CollectionsPage />} />
+                  <Route path="catalogue"   element={<CataloguePage />} />
                   <Route path="transforms" element={<TransformsPage />} />
                   <Route path="connectors" element={<ConnectorsPage />} />
                   <Route path="lineage"    element={<LineagePage />} />

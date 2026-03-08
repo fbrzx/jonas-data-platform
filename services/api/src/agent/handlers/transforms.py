@@ -88,6 +88,7 @@ def handle(
                     "source_layer": t.get("source_layer"),
                     "target_layer": t.get("target_layer"),
                     "status": t.get("status"),
+                    "collection": t.get("collection"),
                     "trigger_mode": t.get("trigger_mode", "manual"),
                     "sql_preview": (t.get("transform_sql") or "")[:120],
                 }

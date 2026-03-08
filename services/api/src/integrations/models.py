@@ -15,6 +15,7 @@ class IntegrationCreate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     # links to catalogue.entity; source name is derived from entity.name
     entity_id: str | None = None
+    collection: str | None = None
 
 
 class IntegrationRead(IntegrationCreate):
@@ -33,6 +34,7 @@ class IntegrationUpdate(BaseModel):
     tags: list[str] | None = None
     entity_id: str | None = None
     cron_schedule: str | None = None
+    collection: str | None = None
     # connector_type deliberately excluded — immutable
 
 
