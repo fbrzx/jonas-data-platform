@@ -27,6 +27,7 @@ Before writing any code, read these docs in order:
 - Phase 8 complete: audit stats/chart, DataChart in Catalogue, parquet backup, improved lineage, agent error handling, Observable dashboards with live preview
 - Phase 9 complete: StorageBackend protocol (LocalDuckDB/MotherDuck), S3/GCS parquet via httpfs, collections, RBAC frontend enforcement
 - Phase 10 complete: CI/CD deploy workflow (GHCR, multi-arch), graceful shutdown, structlog structured logging, migration version tracking, query workbench
+- Phase 11 complete: platform super users, cross-tenant admin access, tenant CRUD API, SuperUserPage
 
 ## Phase 1 Status (DONE)
 
@@ -155,6 +156,23 @@ Key files:
 - `.github/workflows/deploy.yml` — Docker build + push workflow
 - `db/011_migration_tracking.sql` — schema_migration DDL
 
+## Phase 11 Status (COMPLETE)
+
+> Tenant management + platform super users
+
+1. ✅ **`is_superuser` flag** — `db/012_superuser.sql` adds column to `user_account`; seeds demo super user (`user-superuser` / `superuser@platform.io`)
+2. ✅ **JWT + middleware** — `is_superuser` included in access token payload; `superuser-token` demo token; `X-Tenant-ID` header lets super users act within any tenant as admin
+3. ✅ **RBAC bypass** — `can()` / `require_permission()` in `auth/permissions.py` short-circuit for super users; new `require_superuser()` guard
+4. ✅ **Auth router** — `_lookup_user` handles super users with no tenant membership; `/me` returns `is_superuser`; token refresh supports `platform` sentinel tenant
+5. ✅ **Super user API** (`/api/v1/superuser/`) — tenant CRUD (list/create/update/delete), tenant member inspection, super user list/create/revoke
+6. ✅ **SuperUserPage** — tenant table with member counts + create/deactivate; super user table with create/revoke; member drawer; `X-Tenant-ID` usage documented
+
+Key files:
+- `db/012_superuser.sql` — schema migration
+- `services/api/src/superuser/router.py` — all super user endpoints
+- `services/api/src/auth/permissions.py` — RBAC bypass + `require_superuser()`
+- `apps/dashboard/src/pages/SuperUserPage.tsx` — platform admin UI
+
 ## Technical Notes
 
 ### DuckDB/MotherDuck specifics
@@ -271,12 +289,17 @@ pytest                                    # run tests
 
 **Demo tokens (hardcoded for local dev, DEMO_MODE=true)**
 ```
-owner-token    → role: owner    (tenant super-admin; all permissions incl. user approve)
-admin-token    → role: admin    (full layer access + PII; all permissions except user approve)
-engineer-token → role: engineer (approve transforms/connectors/catalogue; no user admin)
-analyst-token  → role: analyst  (silver/gold only, PII masked; read/write, no approve)
-viewer-token   → role: viewer   (gold only, PII masked; read-only)
+superuser-token → platform super user (cross-tenant admin; manages all tenants + super users)
+owner-token     → role: owner    (tenant super-admin; all permissions incl. user approve)
+admin-token     → role: admin    (full layer access + PII; all permissions except user approve)
+engineer-token  → role: engineer (approve transforms/connectors/catalogue; no user admin)
+analyst-token   → role: analyst  (silver/gold only, PII masked; read/write, no approve)
+viewer-token    → role: viewer   (gold only, PII masked; read-only)
 ```
+
+**Super user cross-tenant access**
+Super users authenticate without a tenant context. To act within a specific tenant, pass the
+`X-Tenant-ID` header — the request is then handled with admin-equivalent access for that tenant.
 
 **Data volumes (local)**
 ```

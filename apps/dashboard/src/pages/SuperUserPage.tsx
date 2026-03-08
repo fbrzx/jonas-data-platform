@@ -37,10 +37,10 @@ function CreateTenantModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => api.superuser.createTenant({ slug, name }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['su-tenants'] })
-      toast('Tenant created', 'success')
+      toast('success', 'Tenant created')
       onClose()
     },
-    onError: (e: Error) => toast(e.message, 'error'),
+    onError: (e: Error) => toast('error', e.message),
   })
 
   return (
@@ -101,10 +101,10 @@ function CreateSuperUserModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => api.superuser.createSuperUser({ email, display_name: displayName, password }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['su-superusers'] })
-      toast('Super user created', 'success')
+      toast('success', 'Super user created')
       onClose()
     },
-    onError: (e: Error) => toast(e.message, 'error'),
+    onError: (e: Error) => toast('error', e.message),
   })
 
   return (
@@ -238,18 +238,18 @@ export default function SuperUserPage() {
     mutationFn: (id: string) => api.superuser.deleteTenant(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['su-tenants'] })
-      toast('Tenant deactivated — all memberships revoked', 'success')
+      toast('success', 'Tenant deactivated — all memberships revoked')
     },
-    onError: (e: Error) => toast(e.message, 'error'),
+    onError: (e: Error) => toast('error', e.message),
   })
 
   const revokeSU = useMutation({
     mutationFn: (id: string) => api.superuser.revokeSuperUser(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['su-superusers'] })
-      toast('Super user privileges revoked', 'success')
+      toast('success', 'Super user privileges revoked')
     },
-    onError: (e: Error) => toast(e.message, 'error'),
+    onError: (e: Error) => toast('error', e.message),
   })
 
   function confirmDeleteTenant(t: PlatformTenant) {
