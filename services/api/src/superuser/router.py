@@ -85,7 +85,8 @@ async def create_tenant(request: Request, body: TenantCreate) -> dict[str, Any]:
     storage_prefix = f"tenants/{body.slug}"
 
     conn.execute(
-        "INSERT INTO platform.tenant (id, slug, name, storage_prefix, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO platform.tenant (id, slug, name, storage_prefix, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
         [tenant_id, body.slug, body.name, storage_prefix, now],
     )
 
@@ -95,7 +96,9 @@ async def create_tenant(request: Request, body: TenantCreate) -> dict[str, Any]:
         provision_tenant_schemas(tenant_id)
     except Exception as exc:
         import structlog
-        structlog.get_logger(__name__).warning("schema_provisioning_failed", tenant_id=tenant_id, error=repr(exc))
+        structlog.get_logger(__name__).warning(
+            "schema_provisioning_failed", tenant_id=tenant_id, error=repr(exc)
+        )
 
     write_audit(
         tenant_id=tenant_id,
@@ -182,7 +185,8 @@ async def delete_tenant(request: Request, tenant_id: str) -> None:
     now = datetime.now(UTC).isoformat()
     # Revoke all active memberships
     conn.execute(
-        "UPDATE platform.tenant_membership SET revoked_at = ? WHERE tenant_id = ? AND revoked_at IS NULL",
+        "UPDATE platform.tenant_membership SET revoked_at = ? "
+        "WHERE tenant_id = ? AND revoked_at IS NULL",
         [now, tenant_id],
     )
 
@@ -273,7 +277,8 @@ async def create_superuser(request: Request, body: SuperUserCreate) -> dict[str,
     user_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
 
     conn.execute(
-        "INSERT INTO platform.user_account (id, email, display_name, password_hash, is_superuser, created_at) "
+        "INSERT INTO platform.user_account "
+        "(id, email, display_name, password_hash, is_superuser, created_at) "
         "VALUES (?, ?, ?, ?, TRUE, ?)",
         [user_id, body.email, body.display_name, pw_hash, now],
     )
