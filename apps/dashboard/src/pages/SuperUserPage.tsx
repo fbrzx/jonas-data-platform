@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../lib/api'
+import { useNavigate } from 'react-router-dom'
+import { api, setActiveTenantId } from '../lib/api'
 import type { PlatformTenant, PlatformSuperUser, TenantUser } from '../lib/api'
 import { useToast } from '../lib/toast'
 
@@ -218,7 +219,14 @@ function TenantUsersDrawer({ tenant, onClose }: { tenant: PlatformTenant; onClos
 
 export default function SuperUserPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const { toast } = useToast()
+
+  function enterTenant(tenantId: string) {
+    setActiveTenantId(tenantId)
+    qc.invalidateQueries()
+    navigate('/')
+  }
 
   const [showCreateTenant, setShowCreateTenant] = useState(false)
   const [showCreateSU, setShowCreateSU] = useState(false)
@@ -301,6 +309,7 @@ export default function SuperUserPage() {
                 <th className="text-right px-4 py-2 text-j-dim font-normal tracking-widest uppercase text-[10px]">Members</th>
                 <th className="text-right px-4 py-2 text-j-dim font-normal tracking-widest uppercase text-[10px]">Created</th>
                 <th className="px-4 py-2" />
+                <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -323,6 +332,14 @@ export default function SuperUserPage() {
                   </td>
                   <td className="px-4 py-3 text-right text-j-dim">
                     {new Date(t.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      className="text-j-accent hover:opacity-70 text-[10px] tracking-widest uppercase border border-j-accent px-2 py-0.5 rounded"
+                      onClick={() => enterTenant(t.id)}
+                    >
+                      Enter →
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button

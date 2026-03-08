@@ -2,7 +2,26 @@
 
 const TOKEN_KEY = 'jonas_token'
 const REFRESH_KEY = 'jonas_refresh_token'
+const ACTIVE_TENANT_KEY = 'jonas_active_tenant'
 const API_BASE_PATH = '/api/v1'
+
+export function getActiveTenantId(): string | null {
+  return localStorage.getItem(ACTIVE_TENANT_KEY)
+}
+
+export function setActiveTenantId(tenantId: string | null): void {
+  if (tenantId) {
+    localStorage.setItem(ACTIVE_TENANT_KEY, tenantId)
+  } else {
+    localStorage.removeItem(ACTIVE_TENANT_KEY)
+  }
+  window.dispatchEvent(new Event('jonas_tenant_changed'))
+}
+
+function _tenantHeaders(): Record<string, string> {
+  const tid = getActiveTenantId()
+  return tid ? { 'X-Tenant-ID': tid } : {}
+}
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? ''
@@ -32,6 +51,7 @@ export function isLoggedIn(): boolean {
 export function getRoleFromToken(token: string): string {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (payload.is_superuser) return 'superuser'
     return payload.role ?? 'viewer'
   } catch {
     // demo tokens
@@ -391,6 +411,7 @@ async function request<T>(path: string, init: RequestInit = {}, _retry = true): 
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${getToken()}`,
+      ..._tenantHeaders(),
       ...(init.headers ?? {}),
     },
   })
@@ -412,7 +433,7 @@ async function upload<T>(path: string, file: File): Promise<T> {
   form.append('file', file)
   const res = await fetch(`${API_BASE_PATH}${path}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: { Authorization: `Bearer ${getToken()}`, ..._tenantHeaders() },
     body: form,
   })
   if (!res.ok) {
@@ -606,6 +627,7 @@ export const api = {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`,
+          ..._tenantHeaders(),
         },
         body: JSON.stringify({ messages }),
       })

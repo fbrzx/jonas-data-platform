@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { api, type Entity, type Transform, getToken, getRoleFromToken } from '../lib/api'
+import { api, type Entity, type Transform, getToken, getRoleFromToken, isSuperUser, getActiveTenantId } from '../lib/api'
 import ActivityChart from '../components/ActivityChart'
 
 
@@ -93,6 +93,8 @@ function QuickAction({ to, glyph, label, sub }: { to: string; glyph: string; lab
 
 export default function DashboardPage() {
   const role = getRoleFromToken(getToken())
+  const isSU = isSuperUser()
+  const hasTenant = !!getActiveTenantId()
 
   const { data: entities } = useQuery({
     queryKey: ['entities'],
@@ -138,6 +140,23 @@ export default function DashboardPage() {
   const recentTransforms = [...trns].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   ).slice(0, 5)
+
+  if (isSU && !hasTenant) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-j-bg">
+        <div className="text-center space-y-3">
+          <div className="font-mono text-2xl text-j-dim">⬢</div>
+          <div className="font-mono text-sm text-j-bright">Platform Super User</div>
+          <div className="font-mono text-[11px] text-j-dim max-w-xs">
+            Select a tenant from the sidebar to view and manage its data.
+          </div>
+          <div className="font-mono text-[10px] text-j-dim opacity-60 pt-2">
+            Or go to <Link to="/superuser" className="text-j-accent hover:underline">Platform Admin</Link> to manage tenants.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 overflow-auto p-6 bg-j-bg">

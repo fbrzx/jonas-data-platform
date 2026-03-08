@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { getToken } from '../lib/api'
+import { getToken, getActiveTenantId } from '../lib/api'
 import DataChart from '../components/DataChart'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -121,19 +121,30 @@ export default function QueryWorkbenchPage() {
 
   const { data: tables = [] } = useQuery<TableInfo[]>({
     queryKey: ['query-tables'],
-    queryFn: () => fetch('/api/v1/query/tables', {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    }).then(r => r.json()) as Promise<TableInfo[]>,
+    queryFn: () => {
+      const tid = getActiveTenantId()
+      return fetch('/api/v1/query/tables', {
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          ...(tid ? { 'X-Tenant-ID': tid } : {}),
+        },
+      }).then(async r => {
+        if (!r.ok) return []
+        return r.json() as Promise<TableInfo[]>
+      })
+    },
     staleTime: 60_000,
   })
 
   const mutation = useMutation({
-    mutationFn: (sqlQuery: string) =>
-      fetch('/api/v1/query', {
+    mutationFn: (sqlQuery: string) => {
+      const tid = getActiveTenantId()
+      return fetch('/api/v1/query', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`,
+          ...(tid ? { 'X-Tenant-ID': tid } : {}),
         },
         body: JSON.stringify({ sql: sqlQuery }),
       }).then(async r => {
@@ -142,7 +153,8 @@ export default function QueryWorkbenchPage() {
           throw new Error(body.detail ?? `HTTP ${r.status}`)
         }
         return r.json() as Promise<QueryResult>
-      }),
+      })
+    },
     onSuccess: (data) => {
       setResult(data)
       setError(null)

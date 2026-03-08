@@ -17,7 +17,7 @@ import DashboardsPage from './pages/DashboardsPage'
 import CollectionsPage from './pages/CollectionsPage'
 import QueryWorkbenchPage from './pages/QueryWorkbenchPage'
 import SuperUserPage from './pages/SuperUserPage'
-import { api, getRoleFromToken, getToken, isLoggedIn, isSuperUser } from './lib/api'
+import { api, getRoleFromToken, getToken, isLoggedIn, isSuperUser, getActiveTenantId, setActiveTenantId } from './lib/api'
 import type { ChatMessage } from './lib/api'
 
 const navItems = [
@@ -87,6 +87,14 @@ function Layout({ children }: { children: React.ReactNode }) {
     if (window.innerWidth < 768) return false
     try { return localStorage.getItem(SIDEBAR_KEY) !== 'false' } catch { return true }
   })
+  const [activeTenantId, setActiveTenantIdState] = useState<string | null>(getActiveTenantId)
+
+  // Keep activeTenantId in sync when SuperUserPage writes to localStorage
+  useEffect(() => {
+    const handler = () => setActiveTenantIdState(getActiveTenantId())
+    window.addEventListener('jonas_tenant_changed', handler)
+    return () => window.removeEventListener('jonas_tenant_changed', handler)
+  }, [])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -94,6 +102,8 @@ function Layout({ children }: { children: React.ReactNode }) {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
   const token = getToken()
@@ -102,9 +112,16 @@ function Layout({ children }: { children: React.ReactNode }) {
   const isSU = isSuperUser()
   const { data: currentUser } = useCurrentUser()
 
+  function exitTenant() {
+    setActiveTenantId(null)
+    setActiveTenantIdState(null)
+    queryClient.invalidateQueries()
+    navigate('/superuser', { replace: true })
+  }
+
   const pageTitle = ROUTE_LABELS[location.pathname] ?? 'Jonas'
   const displayEmail = currentUser?.email ?? ''
-  const tenantId = currentUser?.tenant_id ?? (isSU ? 'platform' : 'acme')
+  const tenantId = activeTenantId ?? currentUser?.tenant_id ?? (isSU ? 'platform' : '…')
 
   function toggleSidebar() {
     setSidebarOpen((prev) => {
@@ -146,9 +163,9 @@ function Layout({ children }: { children: React.ReactNode }) {
         <ul className="flex-1 py-2 overflow-y-auto">
           {navItems.filter(({ adminOnly, superuserOnly }) => {
             if (superuserOnly) return isSU
+            // Super users without a tenant context see only the Platform page
+            if (isSU && !activeTenantId && !currentUser?.tenant_id) return false
             if (adminOnly) return isAdmin || isSU
-            // Super users without a tenant context skip tenant-specific pages
-            if (isSU && !currentUser?.tenant_id) return false
             return true
           }).map(({ to, label, glyph }) => (
             <li key={to}>
@@ -207,6 +224,16 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2.5 shrink-0 font-mono text-[10px]">
             {displayEmail && (
               <span className="text-j-dim hidden lg:block truncate max-w-[180px]">{displayEmail}</span>
+            )}
+            {isSU && activeTenantId && (
+              <button
+                onClick={exitTenant}
+                className="hidden lg:flex items-center gap-1.5 text-j-dim hover:text-j-red transition-colors"
+                title="Exit tenant scope"
+              >
+                <span>{activeTenantId}</span>
+                <span>✕</span>
+              </button>
             )}
             <span className={`px-1.5 py-0.5 rounded border ${ROLE_BADGE[role] ?? ROLE_BADGE.viewer}`}>
               {role}

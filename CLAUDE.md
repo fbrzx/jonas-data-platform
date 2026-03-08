@@ -28,6 +28,7 @@ Before writing any code, read these docs in order:
 - Phase 9 complete: StorageBackend protocol (LocalDuckDB/MotherDuck), S3/GCS parquet via httpfs, collections, RBAC frontend enforcement
 - Phase 10 complete: CI/CD deploy workflow (GHCR, multi-arch), graceful shutdown, structlog structured logging, migration version tracking, query workbench
 - Phase 11 complete: platform super users, cross-tenant admin access, tenant CRUD API, SuperUserPage
+- Post-11 fixes: superuser login (migration 012 DuckDB NOT NULL bug), tenant switcher via SuperUserPage "Enter →" button, X-Tenant-ID header propagation in all API calls (incl. SSE + query workbench), role badge shows "superuser" correctly
 
 ## Phase 1 Status (DONE)
 
@@ -171,7 +172,10 @@ Key files:
 - `db/012_superuser.sql` — schema migration
 - `services/api/src/superuser/router.py` — all super user endpoints
 - `services/api/src/auth/permissions.py` — RBAC bypass + `require_superuser()`
-- `apps/dashboard/src/pages/SuperUserPage.tsx` — platform admin UI
+- `apps/dashboard/src/pages/SuperUserPage.tsx` — platform admin UI; "Enter →" button switches tenant context
+- `apps/dashboard/src/lib/api.ts` — `getActiveTenantId` / `setActiveTenantId`; `X-Tenant-ID` injected in all requests
+- `apps/dashboard/src/App.tsx` — reads `jonas_tenant_changed` event; "tenant ✕" exit button in header; nav hidden for SU without tenant
+- `db/012_superuser.sql` — fixed: removed `NOT NULL` from `ALTER TABLE ADD COLUMN` (DuckDB limitation)
 
 ## Technical Notes
 

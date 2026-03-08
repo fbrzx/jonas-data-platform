@@ -90,22 +90,13 @@ export default function LoginPage() {
               <p className="font-mono text-[10px] text-j-dim text-center mb-2">
                 Demo credentials
               </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { email: 'admin@acme.io', pwd: 'admin123', label: 'Admin' },
-                  { email: 'analyst@acme.io', pwd: 'admin123', label: 'Analyst' },
-                  { email: 'viewer@acme.io', pwd: 'admin123', label: 'Viewer' },
-                ].map(({ email: e, pwd, label }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => { setEmail(e); setPassword(pwd) }}
-                    className="font-mono text-[9px] tracking-[0.05em] uppercase text-j-dim border border-j-border rounded py-1 hover:border-j-accent hover:text-j-accent transition-colors"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => { setEmail('superuser@platform.io'); setPassword('admin123') }}
+                className="w-full font-mono text-[9px] tracking-[0.05em] uppercase text-j-dim border border-j-border rounded py-1.5 hover:border-j-accent hover:text-j-accent transition-colors"
+              >
+                Super User — superuser@platform.io
+              </button>
             </div>
           </div>
         </div>
