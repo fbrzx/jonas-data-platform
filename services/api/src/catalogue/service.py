@@ -94,12 +94,23 @@ def update_entity(
     _COLUMN_MAP = {"metadata": "meta"}
     _JSON_COLUMNS = {"tags", "meta"}
     _SKIP = {"fields"}  # handled separately via create_fields_bulk
+    _ALLOWED_COLS = {
+        "name",
+        "description",
+        "layer",
+        "namespace",
+        "tags",
+        "meta",
+        "collection",
+    }
 
     db_updates: dict[str, Any] = {}
     for k, v in data.items():
         if k in _SKIP or v is None:
             continue
         col = _COLUMN_MAP.get(k, k)
+        if col not in _ALLOWED_COLS:
+            continue
         db_updates[col] = (
             json.dumps(v) if col in _JSON_COLUMNS and not isinstance(v, str) else v
         )

@@ -13,7 +13,9 @@ services:
       DUCKDB_PATH: /app/data/db/jonas.duckdb
       PARQUET_ROOT: /app/data/parquet
       DASHBOARDS_ROOT: /app/data/dashboards
+      DEBUG: "true"
       API_SECRET_KEY: ${API_SECRET_KEY:-change_me_in_dev}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
       LLM_MODEL: ${LLM_MODEL:-llama3.2}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

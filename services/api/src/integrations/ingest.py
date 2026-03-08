@@ -215,8 +215,21 @@ def land_api_pull(
     import httpx
 
     started_at = _now()
+
+    ssrf_err = check_url(url)
+    if ssrf_err:
+        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [ssrf_err])
+        return {
+            "rows_received": 0,
+            "rows_landed": 0,
+            "target_table": _bronze_table(source, tenant_id),
+            "errors": [ssrf_err],
+            "run_id": run_id,
+        }
+
     try:
-        response = httpx.get(url, headers=headers, timeout=30, follow_redirects=True)
+        # follow_redirects=False prevents SSRF bypass via open redirects
+        response = httpx.get(url, headers=headers, timeout=30, follow_redirects=False)
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         msg = f"HTTP {exc.response.status_code}: {exc.response.text[:200]}"

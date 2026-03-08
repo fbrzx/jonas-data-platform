@@ -80,6 +80,16 @@ def update_integration(
         return None
 
     _JSON_COLUMNS = {"config", "tags"}
+    _ALLOWED_COLS = {
+        "name",
+        "description",
+        "status",
+        "config",
+        "tags",
+        "target_entity_id",
+        "cron_schedule",
+        "collection",
+    }
     # connector_type is immutable — always excluded
     data.pop("connector_type", None)
     # entity_id in the API maps to target_entity_id in the DB
@@ -88,7 +98,7 @@ def update_integration(
 
     db_updates: dict[str, Any] = {}
     for k, v in data.items():
-        if v is None:
+        if v is None or k not in _ALLOWED_COLS:
             continue
         if k in _JSON_COLUMNS and not isinstance(v, str):
             serialised = json.dumps(v)

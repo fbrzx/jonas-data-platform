@@ -1,4 +1,4 @@
-import warnings
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -32,15 +32,31 @@ configure_logging()
 logger = structlog.get_logger(__name__)
 
 _WEAK_SECRET = "change_me_in_production"
+_WEAK_PASSWORD = "admin123"
+
+
+def _check_production_secrets() -> None:
+    """Refuse to start in non-debug mode with known-weak secrets."""
+    if settings.debug:
+        return
+    errors = []
+    if settings.api_secret_key == _WEAK_SECRET:
+        errors.append(
+            "API_SECRET_KEY is still the default placeholder — set a strong random value in .env"
+        )
+    if settings.admin_password == _WEAK_PASSWORD:
+        errors.append(
+            "ADMIN_PASSWORD is still 'admin123' — set a strong password in .env"
+        )
+    if errors:
+        for msg in errors:
+            logger.error("startup_refused", reason=msg)
+        sys.exit(1)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    if settings.api_secret_key == _WEAK_SECRET and not settings.debug:
-        warnings.warn(
-            "API_SECRET_KEY is still the default placeholder — set a strong secret in .env",
-            stacklevel=1,
-        )
+    _check_production_secrets()
     logger.info("startup", host=settings.api_host, port=settings.api_port)
     await init_connection()
     bootstrap()

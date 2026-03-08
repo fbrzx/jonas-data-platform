@@ -118,12 +118,24 @@ def update_transform(
     is_draft = existing.get("status") == "draft"
     _JSON_COLUMNS = {"tags", "watch_entities"}
     _COLUMN_MAP = {"sql": "transform_sql"}
+    _ALLOWED_COLS = {
+        "name",
+        "description",
+        "transform_sql",
+        "status",
+        "tags",
+        "trigger_mode",
+        "watch_entities",
+        "collection",
+    }
 
     db_updates: dict[str, Any] = {}
     for k, v in data.items():
         if v is None:
             continue
         col = _COLUMN_MAP.get(k, k)
+        if col not in _ALLOWED_COLS:
+            continue
         db_updates[col] = (
             json.dumps(v) if col in _JSON_COLUMNS and not isinstance(v, str) else v
         )

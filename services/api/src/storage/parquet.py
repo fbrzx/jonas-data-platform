@@ -76,19 +76,34 @@ def _run_path(tenant_id: str, kind: str, resource_id: str, filename: str) -> str
     return f"{root}/{_safe(tenant_id)}/runs/{kind}/{_safe(resource_id)}/{filename}"
 
 
+def _safe_s3_value(value: str) -> str:
+    """Sanitise an S3 config value before interpolation into a DuckDB SET statement.
+
+    DuckDB does not support parameterised SET, so we strip characters that could
+    break the SQL string literal (single quotes, backslashes, newlines).
+    """
+    return value.replace("'", "").replace("\\", "").replace("\n", "").replace("\r", "")
+
+
 def _configure_s3(conn: Any) -> None:
     """Install and configure DuckDB httpfs for S3/MinIO access."""
     from src.config import settings
 
     try:
         conn.execute("INSTALL httpfs; LOAD httpfs;")
-        conn.execute(f"SET s3_region='{settings.s3_region}';")
+        conn.execute(f"SET s3_region='{_safe_s3_value(settings.s3_region)}';")
         if settings.s3_access_key:
-            conn.execute(f"SET s3_access_key_id='{settings.s3_access_key}';")
-            conn.execute(f"SET s3_secret_access_key='{settings.s3_secret_key}';")
+            conn.execute(
+                f"SET s3_access_key_id='{_safe_s3_value(settings.s3_access_key)}';"
+            )
+            conn.execute(
+                f"SET s3_secret_access_key='{_safe_s3_value(settings.s3_secret_key)}';"
+            )
         if settings.s3_endpoint:
             # MinIO / custom endpoint: disable SSL + path-style access
-            conn.execute(f"SET s3_endpoint='{settings.s3_endpoint.rstrip('/')}/';")
+            conn.execute(
+                f"SET s3_endpoint='{_safe_s3_value(settings.s3_endpoint.rstrip('/'))}/';"
+            )
             conn.execute("SET s3_use_ssl=false;")
             conn.execute("SET s3_url_style='path';")
     except Exception as exc:

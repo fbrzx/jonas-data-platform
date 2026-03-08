@@ -64,9 +64,6 @@ def handle(
 
     # ── discover_api ─────────────────────────────────────────────────────────
     if tool_name == "discover_api":
-        import ipaddress
-        import socket
-        import urllib.parse
 
         import httpx
 
@@ -74,29 +71,9 @@ def handle(
         if not url:
             return json.dumps({"error": "url is required"})
 
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme not in ("http", "https"):
-            return json.dumps({"error": "Only http/https URLs are supported"})
-
-        hostname = parsed.hostname or ""
-        try:
-            ip_str = socket.gethostbyname(hostname)
-            addr = ipaddress.ip_address(ip_str)
-            if (
-                addr.is_private
-                or addr.is_loopback
-                or addr.is_link_local
-                or addr.is_reserved
-            ):
-                return json.dumps(
-                    {
-                        "error": "Access to private/internal/loopback addresses is not permitted."
-                    }
-                )
-        except socket.gaierror:
-            return json.dumps({"error": f"Could not resolve hostname: {hostname!r}"})
-        except ValueError:
-            pass
+        ssrf_err = check_url(url)
+        if ssrf_err:
+            return json.dumps({"error": ssrf_err})
 
         method = tool_input.get("method", "GET").upper()
         headers: dict[str, str] = tool_input.get("headers") or {}
@@ -104,7 +81,8 @@ def handle(
         json_path: str = tool_input.get("json_path") or ""
 
         try:
-            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            # follow_redirects=False prevents SSRF bypass via open redirects
+            with httpx.Client(timeout=10.0, follow_redirects=False) as client:
                 if method == "GET":
                     response = client.get(url, headers=headers)
                 elif method == "POST":
@@ -199,6 +177,7 @@ def handle(
     if tool_name == "create_connector":
         from src.auth.permissions import Action, Resource, can
         from src.integrations.service import create_integration
+
         if not can({"role": role}, Resource.INTEGRATION, Action.WRITE):
             return json.dumps(
                 {"error": f"Access denied: role '{role}' cannot create connectors."}
@@ -209,8 +188,10 @@ def handle(
             return json.dumps({"error": "name is required for create_connector."})
         if not connector_type:
             return json.dumps(
-                {"error": "connector_type is required "
-                 "(webhook, batch_csv, batch_json, or api_pull)."}
+                {
+                    "error": "connector_type is required "
+                    "(webhook, batch_csv, batch_json, or api_pull)."
+                }
             )
         try:
             result = create_integration(tool_input, tenant_id)
@@ -218,9 +199,11 @@ def handle(
             err_msg = str(exc)
             if "Duplicate key" in err_msg or "unique constraint" in err_msg.lower():
                 return json.dumps(
-                    {"error": f"A connector named '{name}' already exists."
-                     " Use a different name or call list_connectors"
-                     " to find the existing one."}
+                    {
+                        "error": f"A connector named '{name}' already exists."
+                        " Use a different name or call list_connectors"
+                        " to find the existing one."
+                    }
                 )
             return json.dumps({"error": f"Failed to create connector: {err_msg[:200]}"})
         return json.dumps(result, default=str)
