@@ -71,6 +71,9 @@ ROLE_DEFAULTS: dict[str, dict[str, set[str]]] = {
 
 def can(user_context: dict[str, Any], resource: str, action: str) -> bool:
     """Return True if the user is permitted to perform `action` on `resource`."""
+    # Super users bypass all RBAC checks — they have full platform access
+    if user_context.get("is_superuser"):
+        return True
     role: str = user_context.get("role") or "viewer"
     role_permissions = ROLE_DEFAULTS.get(role, {})
     allowed_actions = role_permissions.get(resource, set())
@@ -84,4 +87,12 @@ def require_permission(
     if not can(user_context, resource, action):
         raise PermissionError(
             f"User '{user_context.get('email')}' lacks '{action}' on '{resource}'"
+        )
+
+
+def require_superuser(user_context: dict[str, Any]) -> None:
+    """Raise PermissionError if the user is not a platform super user."""
+    if not user_context.get("is_superuser"):
+        raise PermissionError(
+            f"User '{user_context.get('email')}' is not a platform super user"
         )

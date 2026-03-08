@@ -27,6 +27,7 @@ _MIGRATIONS = [
     "009_unique_entity_name.sql",
     "010_collections.sql",
     "011_migration_tracking.sql",
+    "012_superuser.sql",
 ]
 
 
@@ -227,7 +228,7 @@ def seed_admin_password() -> None:
     password = os.environ.get("ADMIN_PASSWORD", "admin123")
     conn = get_conn()
     try:
-        demo_users = ["user-admin", "user-analyst", "user-viewer"]
+        demo_users = ["user-admin", "user-analyst", "user-viewer", "user-superuser"]
         h = hash_password(password)
         for user_id in demo_users:
             row = conn.execute(

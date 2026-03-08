@@ -44,9 +44,22 @@ def _make_token(data: dict[str, Any], ttl: timedelta) -> str:
     return jwt.encode(payload, settings.api_secret_key, algorithm=_ALGORITHM)
 
 
-def create_access_token(user_id: str, email: str, tenant_id: str, role: str) -> str:
+def create_access_token(
+    user_id: str,
+    email: str,
+    tenant_id: str | None,
+    role: str | None,
+    is_superuser: bool = False,
+) -> str:
     return _make_token(
-        {"sub": user_id, "email": email, "tenant_id": tenant_id, "role": role, "type": "access"},
+        {
+            "sub": user_id,
+            "email": email,
+            "tenant_id": tenant_id,
+            "role": role,
+            "is_superuser": is_superuser,
+            "type": "access",
+        },
         _ACCESS_TTL,
     )
 

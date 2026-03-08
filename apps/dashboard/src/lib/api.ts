@@ -36,6 +36,7 @@ export function getRoleFromToken(token: string): string {
   } catch {
     // demo tokens
     const map: Record<string, string> = {
+      'superuser-token': 'superuser',
       'owner-token': 'owner', 'admin-token': 'admin', 'engineer-token': 'engineer',
       'analyst-token': 'analyst', 'viewer-token': 'viewer',
     }
@@ -43,11 +44,25 @@ export function getRoleFromToken(token: string): string {
   }
 }
 
+/** Returns true if the current token belongs to a platform super user. */
+export function isSuperUser(): boolean {
+  const token = getToken()
+  if (!token) return false
+  if (token === 'superuser-token') return true
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return !!payload.is_superuser
+  } catch {
+    return false
+  }
+}
+
 // Keep for backward compat
 export const DEMO_TOKENS = [
-  { label: 'Admin',   value: 'admin-token'   },
-  { label: 'Analyst', value: 'analyst-token' },
-  { label: 'Viewer',  value: 'viewer-token'  },
+  { label: 'Super User', value: 'superuser-token' },
+  { label: 'Admin',      value: 'admin-token'     },
+  { label: 'Analyst',    value: 'analyst-token'   },
+  { label: 'Viewer',     value: 'viewer-token'    },
 ]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -302,6 +317,23 @@ export interface InviteResponse {
   invite_link: string
 }
 
+export interface PlatformTenant {
+  id: string
+  slug: string
+  name: string
+  storage_prefix: string
+  created_at: string
+  active_members: number
+  total_members: number
+}
+
+export interface PlatformSuperUser {
+  id: string
+  email: string
+  display_name: string
+  created_at: string
+}
+
 export interface AuditDayCount {
   day: string
   total: number
@@ -402,7 +434,7 @@ export const api = {
       request<{ access_token: string; refresh_token: string }>('/auth/refresh', {
         method: 'POST', body: JSON.stringify({ refresh_token }),
       }),
-    me: () => request<{ user_id: string; email: string; tenant_id: string; role: string }>('/auth/me'),
+    me: () => request<{ user_id: string; email: string; tenant_id: string | null; role: string | null; is_superuser: boolean }>('/auth/me'),
     logout: () => { clearTokens() },
     acceptInvite: (token: string, display_name: string, password: string) =>
       request<{ access_token: string; refresh_token: string; token_type: string }>(
@@ -528,6 +560,25 @@ export const api = {
       }),
     revokeUser: (userId: string) =>
       request<void>(`/tenant/users/${userId}`, { method: 'DELETE' }),
+  },
+
+  superuser: {
+    listTenants: () => request<PlatformTenant[]>('/superuser/tenants'),
+    createTenant: (body: { slug: string; name: string }) =>
+      request<PlatformTenant>('/superuser/tenants', { method: 'POST', body: JSON.stringify(body) }),
+    updateTenant: (tenantId: string, body: { name?: string }) =>
+      request<PlatformTenant>(`/superuser/tenants/${tenantId}`, {
+        method: 'PATCH', body: JSON.stringify(body),
+      }),
+    deleteTenant: (tenantId: string) =>
+      request<void>(`/superuser/tenants/${tenantId}`, { method: 'DELETE' }),
+    listTenantUsers: (tenantId: string) =>
+      request<TenantUser[]>(`/superuser/tenants/${tenantId}/users`),
+    listSuperUsers: () => request<PlatformSuperUser[]>('/superuser/users'),
+    createSuperUser: (body: { email: string; display_name: string; password: string }) =>
+      request<PlatformSuperUser>('/superuser/users', { method: 'POST', body: JSON.stringify(body) }),
+    revokeSuperUser: (userId: string) =>
+      request<void>(`/superuser/users/${userId}`, { method: 'DELETE' }),
   },
 
   dashboards: {
