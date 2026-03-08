@@ -24,6 +24,7 @@ from src.limiter import limiter
 from src.logging_config import configure_logging
 from src.query.router import router as query_router
 from src.scheduler import scheduler as job_scheduler
+from src.superuser.router import router as superuser_router
 from src.tenant.router import router as tenant_router
 from src.transforms.router import router as transforms_router
 
@@ -139,6 +140,12 @@ app.include_router(
     query_router,
     prefix="/api/v1/query",
     tags=["query"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    superuser_router,
+    prefix="/api/v1/superuser",
+    tags=["superuser"],
     dependencies=[Depends(docs_bearer_auth)],
 )
 

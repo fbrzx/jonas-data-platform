@@ -3,6 +3,9 @@
 When DEMO_MODE=true (default for local dev), the three hardcoded demo tokens
 (admin-token, analyst-token, viewer-token) are accepted alongside real JWTs.
 In production set DEMO_MODE=false to require JWT auth only.
+
+Super users use 'superuser-token' in demo mode or a JWT with is_superuser=True.
+They may pass an X-Tenant-ID header to act within a specific tenant context.
 """
 
 from typing import Any
@@ -23,35 +26,47 @@ PUBLIC_PATHS = {
 }
 
 _DEMO_TOKENS: dict[str, dict[str, Any]] = {
+    "superuser-token": {
+        "user_id": "user-superuser",
+        "email": "superuser@platform.io",
+        "tenant_id": None,
+        "role": None,
+        "is_superuser": True,
+    },
     "owner-token": {
         "user_id": "user-owner",
         "email": "owner@acme.io",
         "tenant_id": "tenant-acme",
         "role": "owner",
+        "is_superuser": False,
     },
     "admin-token": {
         "user_id": "user-admin",
         "email": "admin@acme.io",
         "tenant_id": "tenant-acme",
         "role": "admin",
+        "is_superuser": False,
     },
     "engineer-token": {
         "user_id": "user-engineer",
         "email": "engineer@acme.io",
         "tenant_id": "tenant-acme",
         "role": "engineer",
+        "is_superuser": False,
     },
     "analyst-token": {
         "user_id": "user-analyst",
         "email": "analyst@acme.io",
         "tenant_id": "tenant-acme",
         "role": "analyst",
+        "is_superuser": False,
     },
     "viewer-token": {
         "user_id": "user-viewer",
         "email": "viewer@acme.io",
         "tenant_id": "tenant-acme",
         "role": "viewer",
+        "is_superuser": False,
     },
 }
 
@@ -70,7 +85,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         token = self._extract_token(request)
-        request.state.user = self._resolve_token(token) if token else None
+        user = self._resolve_token(token) if token else None
+
+        # Super users can pass X-Tenant-ID to act within a specific tenant context.
+        # This lets them access any tenant's data with admin-equivalent access.
+        if user and user.get("is_superuser"):
+            override_tenant = request.headers.get("X-Tenant-ID")
+            if override_tenant:
+                user = {**user, "tenant_id": override_tenant, "role": "admin"}
+
+        request.state.user = user
         return await call_next(request)
 
     @staticmethod
@@ -95,6 +119,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "email": payload.get("email"),
                 "tenant_id": payload.get("tenant_id"),
                 "role": payload.get("role"),
+                "is_superuser": bool(payload.get("is_superuser", False)),
             }
 
-        return {"user_id": None, "tenant_id": None, "role": None}
+        return {"user_id": None, "tenant_id": None, "role": None, "is_superuser": False}

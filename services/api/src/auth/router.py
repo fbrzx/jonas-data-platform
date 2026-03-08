@@ -35,21 +35,46 @@ class RefreshRequest(BaseModel):
 
 
 def _lookup_user(email: str) -> dict[str, Any] | None:
+    """Look up a user by email.
+
+    Super users have no tenant membership — they authenticate via user_account only.
+    Regular users require a tenant_membership row.
+    """
     conn = get_conn()
+
+    # First check if this is a super user (no membership required)
+    super_row = conn.execute(
+        """
+        SELECT id, email, display_name, password_hash, is_superuser
+        FROM platform.user_account
+        WHERE email = ? AND is_superuser = TRUE
+        LIMIT 1
+        """,
+        [email],
+    ).fetchone()
+    if super_row:
+        cols = ["id", "email", "display_name", "password_hash", "is_superuser"]
+        d = dict(zip(cols, super_row))
+        d["tenant_id"] = None
+        d["role"] = None
+        return d
+
+    # Regular user — must have an active tenant membership
     row = conn.execute(
         """
         SELECT u.id, u.email, u.display_name, u.password_hash,
-               m.tenant_id, m.role
+               m.tenant_id, m.role,
+               COALESCE(u.is_superuser, FALSE) AS is_superuser
         FROM platform.user_account u
         JOIN platform.tenant_membership m ON m.user_id = u.id
-        WHERE u.email = ?
+        WHERE u.email = ? AND m.revoked_at IS NULL
         LIMIT 1
         """,
         [email],
     ).fetchone()
     if not row:
         return None
-    cols = ["id", "email", "display_name", "password_hash", "tenant_id", "role"]
+    cols = ["id", "email", "display_name", "password_hash", "tenant_id", "role", "is_superuser"]
     return dict(zip(cols, row))
 
 
@@ -60,8 +85,9 @@ async def login(body: LoginRequest) -> dict[str, str]:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    audit_tenant = user["tenant_id"] or "platform"
     write_audit(
-        tenant_id=user["tenant_id"],
+        tenant_id=audit_tenant,
         user_id=user["id"],
         action="login",
         resource_type="user",
@@ -69,9 +95,13 @@ async def login(body: LoginRequest) -> dict[str, str]:
     )
     return {
         "access_token": create_access_token(
-            user["id"], user["email"], user["tenant_id"], user["role"]
+            user["id"],
+            user["email"],
+            user["tenant_id"],
+            user["role"],
+            is_superuser=bool(user.get("is_superuser", False)),
         ),
-        "refresh_token": create_refresh_token(user["id"], user["tenant_id"]),
+        "refresh_token": create_refresh_token(user["id"], user["tenant_id"] or "platform"),
         "token_type": "bearer",
     }
 
@@ -84,9 +114,31 @@ async def refresh(body: RefreshRequest) -> dict[str, str]:
     user_id: str = payload["sub"]
     tenant_id: str = payload["tenant_id"]
     conn = get_conn()
+
+    # Super user refresh (tenant_id stored as "platform")
+    if tenant_id == "platform":
+        row = conn.execute(
+            """
+            SELECT email, is_superuser
+            FROM platform.user_account
+            WHERE id = ? AND is_superuser = TRUE
+            """,
+            [user_id],
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="User not found")
+        email, is_superuser = row
+        return {
+            "access_token": create_access_token(
+                user_id, email, None, None, is_superuser=bool(is_superuser)
+            ),
+            "refresh_token": create_refresh_token(user_id, "platform"),
+            "token_type": "bearer",
+        }
+
     row = conn.execute(
         """
-        SELECT u.email, m.role
+        SELECT u.email, m.role, COALESCE(u.is_superuser, FALSE) AS is_superuser
         FROM platform.user_account u
         JOIN platform.tenant_membership m ON m.user_id = u.id AND m.tenant_id = ?
         WHERE u.id = ?
@@ -95,9 +147,11 @@ async def refresh(body: RefreshRequest) -> dict[str, str]:
     ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="User not found")
-    email, role = row
+    email, role, is_superuser = row
     return {
-        "access_token": create_access_token(user_id, email, tenant_id, role),
+        "access_token": create_access_token(
+            user_id, email, tenant_id, role, is_superuser=bool(is_superuser)
+        ),
         "refresh_token": create_refresh_token(user_id, tenant_id),
         "token_type": "bearer",
     }
@@ -196,6 +250,7 @@ async def me(request: Request) -> dict[str, Any]:
     return {
         "user_id": user["user_id"],
         "email": user.get("email"),
-        "tenant_id": user["tenant_id"],
-        "role": user["role"],
+        "tenant_id": user.get("tenant_id"),
+        "role": user.get("role"),
+        "is_superuser": bool(user.get("is_superuser", False)),
     }

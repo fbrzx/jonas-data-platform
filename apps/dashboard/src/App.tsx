@@ -16,22 +16,24 @@ import TenantUsersPage from './pages/TenantUsersPage'
 import DashboardsPage from './pages/DashboardsPage'
 import CollectionsPage from './pages/CollectionsPage'
 import QueryWorkbenchPage from './pages/QueryWorkbenchPage'
-import { api, getRoleFromToken, getToken, isLoggedIn } from './lib/api'
+import SuperUserPage from './pages/SuperUserPage'
+import { api, getRoleFromToken, getToken, isLoggedIn, isSuperUser } from './lib/api'
 import type { ChatMessage } from './lib/api'
 
 const navItems = [
-  { to: '/',            label: 'Overview',   glyph: '◉', adminOnly: false },
-  { to: '/chat',        label: 'Chat',       glyph: '◈', adminOnly: false },
-  { to: '/query',       label: 'Workbench',  glyph: '⌗', adminOnly: false },
-  { to: '/collections', label: 'Collections', glyph: '◧', adminOnly: false },
-  { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false },
-  { to: '/transforms',  label: 'Transforms', glyph: '⟳', adminOnly: false },
-  { to: '/connectors',  label: 'Connectors', glyph: '⌥', adminOnly: false },
-  { to: '/lineage',     label: 'Lineage',    glyph: '⬡', adminOnly: false },
-  { to: '/dashboards',  label: 'Dashboards', glyph: '▦', adminOnly: false },
-  { to: '/audit',       label: 'Audit',      glyph: '◎', adminOnly: false },
-  { to: '/team',        label: 'Team',       glyph: '⊛', adminOnly: true  },
-  { to: '/settings',    label: 'Settings',   glyph: '⊙', adminOnly: true  },
+  { to: '/',            label: 'Overview',   glyph: '◉', adminOnly: false, superuserOnly: false },
+  { to: '/chat',        label: 'Chat',       glyph: '◈', adminOnly: false, superuserOnly: false },
+  { to: '/query',       label: 'Workbench',  glyph: '⌗', adminOnly: false, superuserOnly: false },
+  { to: '/collections', label: 'Collections', glyph: '◧', adminOnly: false, superuserOnly: false },
+  { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false, superuserOnly: false },
+  { to: '/transforms',  label: 'Transforms', glyph: '⟳', adminOnly: false, superuserOnly: false },
+  { to: '/connectors',  label: 'Connectors', glyph: '⌥', adminOnly: false, superuserOnly: false },
+  { to: '/lineage',     label: 'Lineage',    glyph: '⬡', adminOnly: false, superuserOnly: false },
+  { to: '/dashboards',  label: 'Dashboards', glyph: '▦', adminOnly: false, superuserOnly: false },
+  { to: '/audit',       label: 'Audit',      glyph: '◎', adminOnly: false, superuserOnly: false },
+  { to: '/team',        label: 'Team',       glyph: '⊛', adminOnly: true,  superuserOnly: false },
+  { to: '/settings',    label: 'Settings',   glyph: '⊙', adminOnly: true,  superuserOnly: false },
+  { to: '/superuser',   label: 'Platform',   glyph: '⬢', adminOnly: false, superuserOnly: true  },
 ]
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -47,12 +49,15 @@ const ROUTE_LABELS: Record<string, string> = {
   '/audit':       'Audit',
   '/team':        'Team',
   '/settings':    'Settings',
+  '/superuser':   'Platform Admin',
 }
 
 const ROLE_BADGE: Record<string, string> = {
-  admin:   'text-j-purple border-j-purple bg-j-purple-dim',
-  analyst: 'text-j-accent border-j-accent bg-j-accent-dim',
-  viewer:  'text-j-dim   border-j-border  bg-j-surface2',
+  superuser: 'text-j-red border-j-red bg-j-red/10',
+  owner:     'text-j-bright border-j-bright bg-j-surface2',
+  admin:     'text-j-purple border-j-purple bg-j-purple-dim',
+  analyst:   'text-j-accent border-j-accent bg-j-accent-dim',
+  viewer:    'text-j-dim   border-j-border  bg-j-surface2',
 }
 
 const SIDEBAR_KEY = 'jonas_sidebar_open'
@@ -93,12 +98,13 @@ function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const token = getToken()
   const role = getRoleFromToken(token)
-  const isAdmin = role === 'admin'
+  const isAdmin = role === 'admin' || role === 'owner'
+  const isSU = isSuperUser()
   const { data: currentUser } = useCurrentUser()
 
   const pageTitle = ROUTE_LABELS[location.pathname] ?? 'Jonas'
   const displayEmail = currentUser?.email ?? ''
-  const tenantId = currentUser?.tenant_id ?? 'acme'
+  const tenantId = currentUser?.tenant_id ?? (isSU ? 'platform' : 'acme')
 
   function toggleSidebar() {
     setSidebarOpen((prev) => {
@@ -138,7 +144,13 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav items */}
         <ul className="flex-1 py-2 overflow-y-auto">
-          {navItems.filter(({ adminOnly }) => !adminOnly || isAdmin).map(({ to, label, glyph }) => (
+          {navItems.filter(({ adminOnly, superuserOnly }) => {
+            if (superuserOnly) return isSU
+            if (adminOnly) return isAdmin || isSU
+            // Super users without a tenant context skip tenant-specific pages
+            if (isSU && !currentUser?.tenant_id) return false
+            return true
+          }).map(({ to, label, glyph }) => (
             <li key={to}>
               <NavLink
                 to={to}
@@ -264,6 +276,7 @@ export default function App() {
                   <Route path="audit"      element={<AuditPage />} />
                   <Route path="team"       element={<TenantUsersPage />} />
                   <Route path="settings"   element={<TenantConfigPage />} />
+                  <Route path="superuser"  element={<SuperUserPage />} />
                   <Route path="*"          element={<DashboardPage />} />
                 </Routes>
               </Layout>
