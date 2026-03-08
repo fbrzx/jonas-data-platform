@@ -113,7 +113,7 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "collection": {
                     "type": "string",
-                    "description": "Optional collection name to group this entity with related resources",
+                    "description": "Optional collection name to group this entity",
                 },
             },
             "required": ["name", "layer", "fields"],
@@ -339,7 +339,7 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "collection": {
                     "type": "string",
-                    "description": "Optional collection name to group this connector with related resources",
+                    "description": "Optional collection name to group this connector",
                 },
             },
             "required": ["name", "connector_type"],
@@ -435,7 +435,7 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "collection": {
                     "type": "string",
-                    "description": "Optional collection name to group this transform with related resources",
+                    "description": "Optional collection name to group this transform",
                 },
             },
             "required": ["name", "sql", "source_layer", "target_layer"],

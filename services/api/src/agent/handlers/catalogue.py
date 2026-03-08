@@ -279,7 +279,9 @@ def handle(
         collection = tool_input.get("collection")  # str or None
 
         if resource_type not in ("entity", "transform", "connector"):
-            return json.dumps({"error": "resource_type must be entity, transform, or connector."})
+            return json.dumps(
+                {"error": "resource_type must be entity, transform, or connector."}
+            )
         if not resource_id:
             return json.dumps({"error": "resource_id is required."})
 
@@ -289,22 +291,47 @@ def handle(
             result = update_entity(resource_id, {"collection": collection}, tenant_id)
             if not result:
                 return json.dumps({"error": f"Entity '{resource_id}' not found."})
-            return json.dumps({"ok": True, "resource_type": "entity", "id": resource_id, "collection": collection})
+            return json.dumps(
+                {
+                    "ok": True,
+                    "resource_type": "entity",
+                    "id": resource_id,
+                    "collection": collection,
+                }
+            )
 
         if resource_type == "transform":
             from src.transforms.service import update_transform
 
-            result = update_transform(resource_id, {"collection": collection}, tenant_id)
+            result = update_transform(
+                resource_id, {"collection": collection}, tenant_id
+            )
             if not result:
                 return json.dumps({"error": f"Transform '{resource_id}' not found."})
-            return json.dumps({"ok": True, "resource_type": "transform", "id": resource_id, "collection": collection})
+            return json.dumps(
+                {
+                    "ok": True,
+                    "resource_type": "transform",
+                    "id": resource_id,
+                    "collection": collection,
+                }
+            )
 
         if resource_type == "connector":
             from src.integrations.service import update_integration
 
-            result = update_integration(resource_id, {"collection": collection}, tenant_id)
+            result = update_integration(
+                resource_id, {"collection": collection}, tenant_id
+            )
             if not result:
                 return json.dumps({"error": f"Connector '{resource_id}' not found."})
-            return json.dumps({"ok": True, "resource_type": "connector", "id": resource_id, "collection": collection})
+            return json.dumps(
+                {
+                    "ok": True,
+                    "resource_type": "connector",
+                    "id": resource_id,
+                    "collection": collection,
+                }
+            )
 
     return None  # unreachable but satisfies type checker

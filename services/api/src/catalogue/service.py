@@ -61,7 +61,8 @@ def create_entity(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     conn.execute(
         """
         INSERT INTO catalogue.entity
-            (id, tenant_id, name, description, layer, tags, meta, collection, created_at, updated_at)
+            (id, tenant_id, name, description, layer, tags, meta,
+             collection, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
