@@ -1,6 +1,6 @@
 # Jonas Data Platform — Roadmap
 
-## What's Done (Phases 1–6)
+## What's Done (Phases 1–9)
 
 | Phase | Summary |
 |-------|---------|
@@ -10,62 +10,46 @@
 | 4 | Connectors (rename), discover_api, cron scheduler, audit page, jonas-form cards |
 | 5 | JWT auth, tenant config/users, invite-by-email, schema-per-tenant |
 | 6 | Event-driven transforms, agent memory, code refactoring, JSON skills |
-
-## Priority Assessment
-
-### Why this order matters
-
-The platform works as a demo but has gaps in three areas: **security** (auth is thin, no secrets management), **storage** (locked to local DuckDB), and **observability** (data is there but not visualised). Here's the reasoning:
-
-1. **Security first** — without it, nothing else is production-credible. Multi-tenancy means nothing if tenant boundaries leak.
-2. **Storage abstraction second** — unlocks real deployments (MotherDuck, cloud parquet, Postgres metadata). Without this, the platform is a single-machine prototype.
-3. **Data visualisation third** — the most visible improvement, but it builds ON secure, multi-backend data. Doing it now means redoing it when storage changes.
-
-That said, a lightweight D3 spike (Phase 8, step 1) can happen early since it only reads from existing query endpoints.
+| 7 | 5-tier RBAC (owner/admin/engineer/analyst/viewer), tenant isolation tests, rate limiting, secrets-at-rest (Fernet), audit completeness, CORS config |
+| 8 | Observable dashboards + live preview, DataChart (auto-detect chart type), ActivityChart (SVG dual-bar), parquet backup, lineage arrowheads, agent error surfacing |
+| 9 | StorageBackend protocol (LocalDuckDB / MotherDuck), S3/GCS parquet via httpfs, collections (tagging entities/transforms/connectors), RBAC frontend enforcement |
 
 ---
 
-## Phase 7 — Security Hardening
+## Phase 7 — Security Hardening ✅ COMPLETE
 
-**Goal**: Make multi-tenancy real, not just schema separation.
+| # | Work Item | Status |
+|---|-----------|--------|
+| 1 | Tenant isolation tests | ✅ 13 integration tests, all green |
+| 2 | 5-tier RBAC (owner/admin/engineer/analyst/viewer) | ✅ Backend + frontend |
+| 3 | Secrets at rest | ✅ Fernet AES-128-CBC on connector configs |
+| 4 | Input validation hardening | ✅ Page-size caps, SQL blocklist, transform validation |
+| 5 | Rate limiting | ✅ SlowAPI — 120/min webhook, 20/min batch |
+| 6 | Audit log completeness | ✅ All four ingest endpoints log |
+| 7 | CORS config | ✅ `CORS_ORIGINS` env var |
 
-| # | Work Item | Priority | Notes |
-|---|-----------|----------|-------|
-| 1 | Tenant isolation audit | Critical | Verify every SQL path includes tenant_id; add integration tests that prove cross-tenant access fails |
-| 2 | RBAC enforcement gaps | Critical | `core-abstractions.md` defines 5 roles (owner/admin/engineer/analyst/viewer) but code only enforces 3 (admin/analyst/viewer). Add owner + engineer roles |
-| 3 | Secrets management | High | `auth_config` currently stores plaintext. Add encrypted-at-rest config (age/sops or env-injected) |
-| 4 | Input validation hardening | High | Audit all endpoints for injection (SQL params are good, but check agent tool inputs, transform SQL, connector configs) |
-| 5 | Rate limiting | Medium | Per-tenant rate limits on ingest + agent chat |
-| 6 | Audit log completeness | Medium | Ensure every mutation is logged (currently partial) |
-| 7 | CORS / CSP headers | Medium | Lock down allowed origins |
+## Phase 8 — Data Visualisation ✅ COMPLETE
 
-## Phase 8 — Data Visualisation (D3 / Observable)
+| # | Work Item | Status |
+|---|-----------|--------|
+| 1 | `<DataChart>` — Observable Plot | ✅ Auto-detects time-series / bar / scatter / histogram |
+| 2 | Entity data explorer | ✅ Table/chart toggle in CataloguePage |
+| 3 | `<ActivityChart>` — dashboard stats | ✅ Dual-bar SVG (connectors + transforms over time) |
+| 4 | Observable Framework dashboards | ✅ Full CRUD, live JS/Plot preview, agent `create_dashboard` tool |
+| 5 | Lineage arrowheads | ✅ `markerEnd` only on visible edges |
+| 6 | Agent chart responses | ↳ Deferred — no "Visualise" button in chat yet |
+| 7 | Query workbench | ↳ Deferred to Phase 10 |
 
-**Goal**: Rich, interactive data exploration in the dashboard.
+## Phase 9 — Storage Abstraction ✅ COMPLETE
 
-| # | Work Item | Priority | Notes |
-|---|-----------|----------|-------|
-| 1 | Observable Framework spike | High | Add `@observablehq/plot` to dashboard; build a generic `<DataChart>` component that takes query results and renders bar/line/scatter based on column types |
-| 2 | Entity data explorer | High | Replace the flat data table in CataloguePage with an interactive grid + chart toggle. Auto-detect time columns for time-series, categoricals for bar charts |
-| 3 | Dashboard stats visualisation | Medium | Replace stat cards on DashboardPage with sparklines (ingest volume over time, transform success rate) |
-| 4 | Lineage graph upgrade | Medium | Current LineagePage is a static 3-column layout. Replace with a proper D3 force-directed or dagre DAG with zoom/pan, clickable nodes, edge labels showing transform names |
-| 5 | Agent chart responses | Medium | When the agent returns tabular data, offer a "Visualise" button that renders an Observable Plot inline in the chat |
-| 6 | Query workbench | Low | Dedicated SQL editor page with results + instant chart, saved queries. Think "DuckDB Studio lite" |
-
-**Recommended library**: `@observablehq/plot` over raw D3. It's higher-level, handles scales/axes automatically, and produces SVG that works well in React. Use raw D3 only for the lineage DAG where you need full layout control.
-
-## Phase 9 — Storage Abstraction
-
-**Goal**: Decouple from local DuckDB so the platform can run against different backends.
-
-| # | Work Item | Priority | Notes |
-|---|-----------|----------|-------|
-| 1 | Storage interface | High | Define a `StorageBackend` protocol: `execute_sql`, `read_table`, `write_table`, `list_schemas`. Current DuckDB code becomes `LocalDuckDBBackend` |
-| 2 | MotherDuck backend | High | `MotherDuckBackend` — connects via `md:` protocol. Schema-per-tenant already works; needs connection pooling and error handling for cloud latency |
-| 3 | Metadata in Postgres | Medium | Move platform/catalogue/audit tables to Postgres (the operational store). Keep DuckDB/MotherDuck for analytical queries only. This is the "right" architecture but a bigger lift |
-| 4 | Cloud parquet paths | Medium | Change `PARQUET_ROOT` to support `s3://` and `gs://` prefixes. DuckDB handles this natively with httpfs extension |
-| 5 | Connection management | Medium | Per-tenant connection pooling, connection health checks, graceful failover |
-| 6 | Database-per-tenant (MotherDuck) | Low | Currently schema-per-tenant. For true isolation, each tenant gets `md:tenant_{slug}`. Deferred because schema-per-tenant is sufficient for most use cases |
+| # | Work Item | Status |
+|---|-----------|--------|
+| 1 | `StorageBackend` protocol | ✅ `LocalDuckDBBackend` + `MotherDuckBackend` |
+| 2 | MotherDuck backend | ✅ Connects via `md:`; optional database-per-tenant |
+| 3 | Cloud parquet (S3/GCS) | ✅ httpfs; supports MinIO via custom endpoint |
+| 4 | Collections | ✅ Tag any entity/transform/connector; CollectionsPage; agent tool |
+| 5 | Metadata in Postgres | ↳ Deferred — all metadata stays in DuckDB for now |
+| 6 | Per-tenant connection pooling | ↳ Deferred to Phase 10 |
 
 ## Phase 10 — Production Readiness
 
@@ -83,10 +67,10 @@ That said, a lightweight D3 spike (Phase 8, step 1) can happen early since it on
 
 ## Quick Wins (can happen anytime)
 
-- [ ] Fix `docs/` to reflect reality (Phase 7 prerequisite — done in this session)
-- [ ] Add `@observablehq/plot` and build one chart component (1-2 hours)
-- [ ] Add owner/engineer roles to RBAC (code change, not architectural)
-- [ ] Tenant isolation integration tests (high value, low effort)
+- [ ] "Visualise" button in agent chat for tabular results
+- [ ] Lineage graph: D3 force-directed or dagre DAG with zoom/pan
+- [ ] Query workbench: SQL editor + results + chart (DuckDB Studio lite)
+- [ ] Demo personas for owner + engineer (seed scripts)
 
 ## LLM Provider Notes
 

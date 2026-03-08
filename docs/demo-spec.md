@@ -14,13 +14,14 @@ The demo proves three things:
 
 | Component | Technology | Status |
 |-----------|-----------|--------|
-| Analytical engine | DuckDB (local) | Working |
-| Cloud persistence | MotherDuck (via MOTHERDUCK_TOKEN) | Supported, untested at scale |
+| Analytical engine | DuckDB (local) / MotherDuck (cloud) | Working |
+| Storage abstraction | `StorageBackend` protocol — `LocalDuckDBBackend` / `MotherDuckBackend` | Working |
 | Web UI | React + Vite + Tailwind + TanStack Query | Working |
 | API layer | FastAPI (Python 3.11+) | Working |
 | Agent backend | Multi-provider LLM (OpenAI/Google/Ollama) | Working |
 | Auth | JWT (HS256) + demo tokens | Working |
-| Data format | DuckDB tables (parquet export planned) | Working |
+| Data format | DuckDB tables + parquet export (local or S3/GCS via httpfs) | Working |
+| Visualisation | Observable Plot (`<DataChart>`, `<ActivityChart>`, dashboards) | Working |
 
 ### Storage Layout (Schema-per-Tenant)
 
@@ -58,11 +59,13 @@ DuckDB database
 
 | User | Email | Role | Access | Password |
 |------|-------|------|--------|----------|
+| Owner | — | owner | Full control incl. user approval | — |
 | Admin | admin@acme.io | admin | All layers, PII visible, approve/manage | admin123 |
-| Analyst | analyst@acme.io | analyst | Silver+gold, PII masked | admin123 |
-| Viewer | viewer@acme.io | viewer | Gold only, PII masked | admin123 |
+| Engineer | — | engineer | Approve transforms/connectors/catalogue; no user admin | — |
+| Analyst | analyst@acme.io | analyst | Silver+gold, PII masked; read/write | admin123 |
+| Viewer | viewer@acme.io | viewer | Gold only, PII masked; read-only | admin123 |
 
-**Demo tokens** (when `DEMO_MODE=true`, default): `admin-token`, `analyst-token`, `viewer-token`
+**Demo tokens** (when `DEMO_MODE=true`, default): `owner-token`, `admin-token`, `engineer-token`, `analyst-token`, `viewer-token`
 
 **JWT login**: `POST /api/v1/auth/login` with email + password
 
@@ -109,11 +112,11 @@ Open http://localhost:5173 — login with demo credentials or use token selector
 - [x] Phase 4: Connectors rename + discover_api + scheduler + audit + jonas-form
 - [x] Phase 5: JWT auth + tenant config + users + invite + schema-per-tenant
 - [x] Phase 6: Event-driven transforms + agent memory + refactoring + JSON skills
+- [x] Phase 7: 5-tier RBAC, tenant isolation tests, rate limiting, secrets-at-rest, audit completeness
+- [x] Phase 8: Observable dashboards, DataChart/ActivityChart, parquet backup, lineage polish
+- [x] Phase 9: StorageBackend abstraction, S3 parquet, collections (entity/transform/connector tagging)
 
 ## What's Next
 
 See [`.claude/docs/roadmap.md`](../.claude/docs/roadmap.md) for the forward plan:
-- Phase 7: Security hardening
-- Phase 8: Data visualisation (D3 / Observable)
-- Phase 9: Storage abstraction
-- Phase 10: Production readiness
+- Phase 10: Production readiness (CI/CD, observability, schema migrations, backup/restore)

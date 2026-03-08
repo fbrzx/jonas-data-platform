@@ -56,14 +56,24 @@ Each connector is linked to a target entity in the catalogue. Connectors support
 ### 5. Permission Grant
 Fine-grained access control layered on top of the role hierarchy.
 
-**Role hierarchy** (on `tenant_membership`):
-- `admin`: Full control — manage users, approve transforms/connectors, all layer access, PII visible
-- `analyst`: Query silver+gold layers, PII masked
-- `viewer`: Read-only on gold layer, PII masked
+**Role hierarchy** (on `tenant_membership`): `owner > admin > engineer > analyst > viewer`
+
+| Role | Layer access | PII | Approve | User admin |
+|------|-------------|-----|---------|------------|
+| owner | all | visible | yes | yes |
+| admin | all | visible | yes | no |
+| engineer | all | masked | yes | no |
+| analyst | silver + gold | masked | no | no |
+| viewer | gold only | masked | no | no |
 
 **SQL scope enforcement**: The agent enforces layer access at query time — analysts cannot SELECT from bronze tables, viewers cannot SELECT from bronze or silver.
 
-**PII masking**: Fields marked `is_pii` are automatically masked (email → `j***@example.com`, phone → `***-***-1234`) for non-admin users. Admins/owners see raw data.
+**PII masking**: Fields marked `is_pii` are automatically masked (email → `j***@example.com`, phone → `***-***-1234`) for roles without PII access. Owner and admin see raw data.
+
+**Frontend gates** (`usePermissions` hook):
+- `canWrite` — analyst and above; controls write actions (upload, trigger)
+- `canApprove` — engineer and above; controls approve/edit actions
+- `canAdmin` — admin and above; controls delete and user management
 
 ### 6. Audit Log
 Append-only. Every mutation, query, approval, and agent action is recorded. The audit system includes:
@@ -77,12 +87,14 @@ Append-only. Every mutation, query, approval, and agent action is recorded. The 
 
 The agent is NOT a superuser. It operates as a proxy for the authenticated user, inheriting their resolved permission set.
 
-**Capabilities** (14 tools):
+**Capabilities** (18 tools):
 - Schema: `infer_schema`, `register_entity`, `preview_entity`
 - Query: `run_sql` (SELECT-only, layer-scoped)
 - Transforms: `draft_transform`, `list_transforms`, `update_transform`
 - Connectors: `list_connectors`, `get_connector_runs`, `ingest_webhook`, `create_connector`, `discover_api`
 - Memory: `save_memory`, `recall_memory`, `forget_memory`
+- Collections: `assign_collection`
+- Dashboards: `create_dashboard`
 
 **LLM providers**: OpenAI, Google (Gemini), Ollama (local models). Configured per-tenant via Tenant Config page.
 
@@ -117,11 +129,11 @@ External Source
 
 ## What's NOT in the Platform (Yet)
 
-- **Secrets management**: auth_config stores plaintext in dev, needs Vault/KMS in production
 - **Outbound connectors**: Only inbound currently (webhook, batch, api_pull)
-- **CDC / streaming**: Realtime inbound is webhooks only
-- **dbt integration**: `transform_type='dbt_ref'` is a placeholder
-- **Schema evolution tooling**: Version tracking exists but migration tooling doesn't
-- **Data visualisation**: Tabular data preview only — D3/Observable charts planned (Phase 8)
-- **Storage abstraction**: Locked to local DuckDB — MotherDuck/cloud parquet planned (Phase 9)
-- **Owner/engineer roles**: RBAC code enforces admin/analyst/viewer only
+- **CDC / streaming**: Realtime inbound is webhooks only — no Kafka/Kinesis integration
+- **dbt integration**: `transform_type='dbt_ref'` is a placeholder, not implemented
+- **Schema evolution tooling**: Version tracking exists but automated migration tooling doesn't
+- **Proper migration framework**: DDL runs on boot; no alembic-style versioned migrations
+- **CI/CD**: No automated build/test/deploy pipeline yet (Phase 10)
+- **Observability**: No structured logging, metrics, or tracing (Phase 10)
+- **Metadata in Postgres**: All data (platform + analytical) lives in DuckDB; splitting to Postgres + DuckDB is a future architecture option
