@@ -35,6 +35,24 @@ def provision_tenant_schemas(tenant_id: str) -> None:
     print(f"[db.tenant_schemas] Provisioned schemas for tenant '{tenant_id}'")
 
 
+def strip_tenant_schemas(sql: str) -> str:
+    """Remove tenant-scoped schema prefixes so SQL uses bare layer names.
+
+    Reverses inject_tenant_schemas — converts
+    ``bronze_tenant_acme.orders`` → ``bronze.orders``.
+
+    Apply before storing exported transform SQL so collections are portable
+    across tenants.  inject_tenant_schemas then re-applies the correct
+    target-tenant prefix at execution time.
+    """
+    return re.sub(
+        r"\b(bronze|silver|gold)_[a-z0-9_]+\.",
+        r"\1.",
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+
 def inject_tenant_schemas(sql: str, tenant_id: str) -> str:
     """Rewrite bare layer.table references to tenant-scoped schemas.
 

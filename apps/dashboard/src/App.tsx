@@ -20,20 +20,28 @@ import SuperUserPage from './pages/SuperUserPage'
 import { api, getRoleFromToken, getToken, isLoggedIn, isSuperUser, getActiveTenantId, setActiveTenantId } from './lib/api'
 import type { ChatMessage } from './lib/api'
 
-const navItems = [
-  { to: '/',            label: 'Overview',   glyph: '◉', adminOnly: false, superuserOnly: false },
-  { to: '/chat',        label: 'Chat',       glyph: '◈', adminOnly: false, superuserOnly: false },
-  { to: '/query',       label: 'Workbench',  glyph: '⌗', adminOnly: false, superuserOnly: false },
-  { to: '/collections', label: 'Collections', glyph: '◧', adminOnly: false, superuserOnly: false },
-  { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false, superuserOnly: false },
-  { to: '/transforms',  label: 'Transforms', glyph: '⟳', adminOnly: false, superuserOnly: false },
-  { to: '/connectors',  label: 'Connectors', glyph: '⌥', adminOnly: false, superuserOnly: false },
-  { to: '/lineage',     label: 'Lineage',    glyph: '⬡', adminOnly: false, superuserOnly: false },
-  { to: '/dashboards',  label: 'Dashboards', glyph: '▦', adminOnly: false, superuserOnly: false },
-  { to: '/audit',       label: 'Audit',      glyph: '◎', adminOnly: false, superuserOnly: false },
-  { to: '/team',        label: 'Team',       glyph: '⊛', adminOnly: true,  superuserOnly: false },
-  { to: '/settings',    label: 'Settings',   glyph: '⊙', adminOnly: true,  superuserOnly: false },
-  { to: '/superuser',   label: 'Platform',   glyph: '⬢', adminOnly: false, superuserOnly: true  },
+type NavItem = { to: string; label: string; glyph: string; adminOnly: boolean; superuserOnly: boolean }
+
+const navGroups: NavItem[][] = [
+  [
+    { to: '/',            label: 'Overview',   glyph: '◉', adminOnly: false, superuserOnly: false },
+    { to: '/chat',        label: 'Chat',       glyph: '◈', adminOnly: false, superuserOnly: false },
+    { to: '/collections', label: 'Collections', glyph: '◧', adminOnly: false, superuserOnly: false },
+    { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false, superuserOnly: false },
+    { to: '/dashboards',  label: 'Dashboards', glyph: '▦', adminOnly: false, superuserOnly: false },
+    { to: '/query',       label: 'Workbench',  glyph: '⌗', adminOnly: false, superuserOnly: false },
+    { to: '/connectors',  label: 'Connectors', glyph: '⌥', adminOnly: false, superuserOnly: false },
+    { to: '/transforms',  label: 'Transforms', glyph: '⟳', adminOnly: false, superuserOnly: false },
+    { to: '/lineage',     label: 'Lineage',    glyph: '⬡', adminOnly: false, superuserOnly: false },
+  ],
+  [
+    { to: '/audit',       label: 'Audit',      glyph: '◎', adminOnly: false, superuserOnly: false },
+    { to: '/team',        label: 'Team',       glyph: '⊛', adminOnly: true,  superuserOnly: false },
+    { to: '/settings',    label: 'Settings',   glyph: '⊙', adminOnly: true,  superuserOnly: false },
+  ],
+  [
+    { to: '/superuser',   label: 'Platform',   glyph: '⬢', adminOnly: false, superuserOnly: true  },
+  ],
 ]
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -119,9 +127,12 @@ function Layout({ children }: { children: React.ReactNode }) {
     navigate('/superuser', { replace: true })
   }
 
-  const pageTitle = ROUTE_LABELS[location.pathname] ?? 'Jonas'
   const displayEmail = currentUser?.email ?? ''
   const tenantId = activeTenantId ?? currentUser?.tenant_id ?? (isSU ? 'platform' : '…')
+  const tenantName = currentUser?.tenant_name ?? tenantId
+  const pageTitle = location.pathname === '/superuser'
+    ? 'Platform'
+    : (tenantName !== '…' ? tenantName : (ROUTE_LABELS[location.pathname] ?? 'Jonas'))
 
   function toggleSidebar() {
     setSidebarOpen((prev) => {
@@ -139,9 +150,16 @@ function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-j-bg overflow-hidden">
 
+      {/* Mobile backdrop — closes sidebar on tap outside */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" onClick={toggleSidebar} aria-hidden="true" />
+      )}
+
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       <nav
-        className={`${sidebarOpen ? 'w-52' : 'w-14'} shrink-0 flex flex-col border-r border-j-border transition-[width] duration-200`}
+        className={`fixed md:relative inset-y-0 left-0 z-50 w-52 shrink-0 flex flex-col border-r border-j-border
+          transition-transform md:transition-[width] duration-200
+          ${sidebarOpen ? 'translate-x-0 md:w-52' : '-translate-x-full md:translate-x-0 md:w-14'}`}
         style={{ background: 'linear-gradient(180deg, #0d1117 0%, #0a0c10 100%)' }}
       >
         {/* Tenant name + collapse toggle */}
@@ -152,7 +170,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
           <div className="font-mono font-semibold text-j-bright tracking-widest text-sm shrink-0 uppercase truncate">
-            {sidebarOpen ? tenantId : tenantId.slice(0, 1).toUpperCase()}
+            {sidebarOpen ? tenantName : tenantName.slice(0, 1).toUpperCase()}
           </div>
           {sidebarOpen && (
             <span className="font-mono text-[11px] text-j-dim group-hover:text-j-accent transition-colors shrink-0 ml-auto">‹</span>
@@ -161,33 +179,40 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav items */}
         <ul className="flex-1 py-2 overflow-y-auto">
-          {navItems.filter(({ adminOnly, superuserOnly }) => {
-            if (superuserOnly) return isSU
-            // Super users without a tenant context see only the Platform page
-            if (isSU && !activeTenantId && !currentUser?.tenant_id) return false
-            if (adminOnly) return isAdmin || isSU
-            return true
-          }).map(({ to, label, glyph }) => (
-            <li key={to}>
-              <NavLink
-                to={to}
-                end={to === '/'}
-                title={!sidebarOpen ? label : undefined}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 py-2.5 font-mono text-[11px] font-medium
-                   tracking-[0.12em] uppercase transition-all duration-150 border-l-2
-                   ${sidebarOpen ? 'px-5' : 'px-0 justify-center'} ${
-                    isActive
-                      ? 'text-j-accent bg-j-accent-dim border-j-accent'
-                      : 'text-j-dim hover:text-j-text hover:bg-j-surface border-transparent'
-                  }`
-                }
-              >
-                <span className="opacity-70 text-base leading-none shrink-0">{glyph}</span>
-                {sidebarOpen && label}
-              </NavLink>
-            </li>
-          ))}
+          {navGroups.flatMap((group, gi) => {
+            const filtered = group.filter(({ adminOnly, superuserOnly }) => {
+              if (superuserOnly) return isSU
+              // Super users without a tenant context see only the Platform page
+              if (isSU && !activeTenantId && !currentUser?.tenant_id) return false
+              if (adminOnly) return isAdmin || isSU
+              return true
+            })
+            if (filtered.length === 0) return []
+            const items = filtered.map(({ to, label, glyph }) => (
+              <li key={to}>
+                <NavLink
+                  to={to}
+                  end={to === '/'}
+                  title={!sidebarOpen ? label : undefined}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 py-2.5 font-mono text-[11px] font-medium
+                     tracking-[0.12em] uppercase transition-all duration-150 border-l-2
+                     ${sidebarOpen ? 'px-5' : 'px-0 justify-center'} ${
+                      isActive
+                        ? 'text-j-accent bg-j-accent-dim border-j-accent'
+                        : 'text-j-dim hover:text-j-text hover:bg-j-surface border-transparent'
+                    }`
+                  }
+                >
+                  <span className="opacity-70 text-base leading-none shrink-0">{glyph}</span>
+                  {sidebarOpen && label}
+                </NavLink>
+              </li>
+            ))
+            return gi > 0
+              ? [<li key={`sep-${gi}`} aria-hidden="true"><hr className="border-j-border/40 mx-3 my-1" /></li>, ...items]
+              : items
+          })}
         </ul>
 
         {/* Sidebar footer */}
@@ -200,7 +225,8 @@ function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* ── Content column ──────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className={`flex-1 flex flex-col overflow-hidden min-w-0 transition-transform duration-200 md:transition-none
+        ${sidebarOpen ? 'translate-x-52 md:translate-x-0' : ''}`}>
 
         {/* Global top header */}
         <header className="shrink-0 h-10 flex items-center gap-3 px-4 border-b border-j-border bg-j-surface">

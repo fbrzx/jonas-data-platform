@@ -50,7 +50,10 @@ function NodeCard({
 }) {
   const cfg = LAYER[node.layer as LayerKey] ?? LAYER.bronze
   let tags: string[] = []
-  try { tags = JSON.parse(node.tags ?? '[]') } catch { /**/ }
+  try {
+    const parsed = JSON.parse(node.tags ?? '[]')
+    tags = Array.isArray(parsed) ? parsed : []
+  } catch { /**/ }
 
   return (
     <div

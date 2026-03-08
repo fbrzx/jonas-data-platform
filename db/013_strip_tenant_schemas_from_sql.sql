@@ -1,0 +1,14 @@
+-- Migration 013: strip tenant-scoped schema prefixes from stored transform SQL.
+--
+-- When collections were imported across tenants, transform SQL retained the
+-- source tenant's schema prefixes (e.g. bronze_621d658d_....table).
+-- inject_tenant_schemas() only rewrites bare `bronze.` references, so those
+-- transforms would query non-existent schemas in the target tenant.
+--
+-- This migration rewrites any stored SQL that contains tenant-prefixed schemas
+-- back to bare layer names so inject_tenant_schemas() can apply correctly.
+--
+-- DuckDB lacks regex_replace with backreferences in all versions, so we use
+-- a Python-side migration instead — this file is intentionally empty and the
+-- real work is done by the bootstrap() function in db/init.py.
+-- (The migration is still recorded in schema_migration for tracking purposes.)

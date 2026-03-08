@@ -36,7 +36,7 @@ const LAYER_COLOR: Record<string, string> = {
 
 function EntityRow({ entity }: { entity: Entity }) {
   let tags: string[] = []
-  try { tags = JSON.parse(entity.tags || '[]') } catch { /* */ }
+  try { const p = JSON.parse(entity.tags || '[]'); tags = Array.isArray(p) ? p : [] } catch { /* */ }
   return (
     <div className="flex items-center gap-3 py-2 border-b border-j-border last:border-0">
       <span className={`font-mono text-[10px] w-12 shrink-0 ${LAYER_COLOR[entity.layer] ?? 'text-j-dim'}`}>

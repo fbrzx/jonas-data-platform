@@ -9,6 +9,7 @@ from typing import Any
 
 from src.db.connection import get_conn
 from src.db.tenant_schemas import layer_schema, safe_tenant_id
+from src.security.ssrf import check_url
 from src.transforms.triggers import fire_on_data_changed
 
 

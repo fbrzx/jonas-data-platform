@@ -345,8 +345,13 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
                 <span className="w-1.5 h-1.5 rounded-full bg-j-amber opacity-70" />
                 <span className="font-mono text-[10px] tracking-[0.12em] uppercase text-j-dim">sql</span>
               </div>
-              <pre className="bg-j-surface px-4 py-3 text-[12px] font-mono text-j-text overflow-x-auto leading-relaxed">
-                {transform.transform_sql || '— no sql —'}
+              <pre className="flex bg-j-surface overflow-x-auto">
+                <span className="select-none text-right font-mono text-[12px] leading-relaxed text-j-border shrink-0 px-3 py-3 border-r border-j-border/30 whitespace-pre">
+                  {(transform.transform_sql || '— no sql —').split('\n').map((_, i) => i + 1).join('\n')}
+                </span>
+                <code className="font-mono text-[12px] leading-relaxed text-j-text whitespace-pre pl-4 py-3 flex-1">
+                  {transform.transform_sql || '— no sql —'}
+                </code>
               </pre>
             </div>
           )}

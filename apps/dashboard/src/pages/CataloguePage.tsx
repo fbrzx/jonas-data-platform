@@ -32,7 +32,7 @@ function EditEntityModal({ entity, onClose }: { entity: Entity; onClose: () => v
   const { canAdmin } = usePermissions()
   const qc = useQueryClient()
   let initialTags: string[] = []
-  try { initialTags = JSON.parse(entity.tags || '[]') } catch { /* */ }
+  try { const p = JSON.parse(entity.tags || '[]'); initialTags = Array.isArray(p) ? p : [] } catch { /* */ }
 
   const [form, setForm] = useState<EntityUpdate>({
     name: entity.name,
@@ -292,7 +292,10 @@ function FieldTable({
         <tbody>
           {[...fields].sort((a, b) => a.ordinal - b.ordinal).map((f) => {
             let samples: string[] = []
-            try { samples = JSON.parse(f.sample_values || '[]') } catch { /* */ }
+            try {
+              const parsed = JSON.parse(f.sample_values || '[]')
+              samples = Array.isArray(parsed) ? parsed : []
+            } catch { /* */ }
             return (
               <tr key={f.id} className="border-b border-j-border hover:bg-j-surface2 transition-colors">
                 <td className="px-4 py-2 font-mono text-j-bright font-medium">{f.name}</td>
@@ -448,7 +451,10 @@ function EntityRow({ entity }: { entity: Entity }) {
   })
 
   let tags: string[] = []
-  try { tags = JSON.parse(entity.tags || '[]') } catch { /* */ }
+  try {
+    const parsed = JSON.parse(entity.tags || '[]')
+    tags = Array.isArray(parsed) ? parsed : []
+  } catch { /* */ }
 
   return (
     <>

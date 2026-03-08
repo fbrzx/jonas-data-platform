@@ -74,7 +74,15 @@ def _lookup_user(email: str) -> dict[str, Any] | None:
     ).fetchone()
     if not row:
         return None
-    cols = ["id", "email", "display_name", "password_hash", "tenant_id", "role", "is_superuser"]
+    cols = [
+        "id",
+        "email",
+        "display_name",
+        "password_hash",
+        "tenant_id",
+        "role",
+        "is_superuser",
+    ]
     return dict(zip(cols, row))
 
 
@@ -101,7 +109,9 @@ async def login(body: LoginRequest) -> dict[str, str]:
             user["role"],
             is_superuser=bool(user.get("is_superuser", False)),
         ),
-        "refresh_token": create_refresh_token(user["id"], user["tenant_id"] or "platform"),
+        "refresh_token": create_refresh_token(
+            user["id"], user["tenant_id"] or "platform"
+        ),
         "token_type": "bearer",
     }
 
@@ -247,10 +257,20 @@ async def me(request: Request) -> dict[str, Any]:
     user = getattr(request.state, "user", None) or {}
     if not user.get("user_id"):
         raise HTTPException(status_code=401, detail="Not authenticated")
+    tenant_id = user.get("tenant_id")
+    tenant_name: str | None = None
+    if tenant_id:
+        db = get_conn()
+        row = db.execute(
+            "SELECT name FROM platform.tenant WHERE id = ?", [tenant_id]
+        ).fetchone()
+        if row:
+            tenant_name = row[0]
     return {
         "user_id": user["user_id"],
         "email": user.get("email"),
-        "tenant_id": user.get("tenant_id"),
+        "tenant_id": tenant_id,
+        "tenant_name": tenant_name,
         "role": user.get("role"),
         "is_superuser": bool(user.get("is_superuser", False)),
     }

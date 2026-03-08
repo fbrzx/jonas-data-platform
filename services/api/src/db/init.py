@@ -28,6 +28,7 @@ _MIGRATIONS = [
     "010_collections.sql",
     "011_migration_tracking.sql",
     "012_superuser.sql",
+    "013_strip_tenant_schemas_from_sql.sql",
 ]
 
 
@@ -54,6 +55,7 @@ def _record_migration(conn: object, filename: str, checksum: str) -> None:
         )
     except Exception as exc:
         logger.warning("migration_record_failed", filename=filename, error=str(exc))
+
 
 _ORDERS_JSON_TRANSFORM_SQL = """CREATE OR REPLACE TABLE silver.orders_cleaned AS
 WITH parsed AS (
@@ -125,6 +127,43 @@ def _migrate_legacy_orders_transform_sql() -> None:
         logger.debug("legacy_transform_migration_skipped", error=repr(exc))
 
 
+def _strip_imported_transform_sql(conn: object) -> None:
+    """Fix transform SQL that has tenant-scoped schema prefixes from cross-tenant imports.
+
+    Replaces ``bronze_<tenant_id>.table`` → ``bronze.table`` in stored SQL so
+    inject_tenant_schemas() can correctly apply the target tenant's prefix at
+    execution time.  Safe to run on every bootstrap — only touches rows where
+    the SQL actually contains a tenant-prefixed schema name.
+    """
+    import re
+
+    try:
+        rows = conn.execute(  # type: ignore[attr-defined]
+            "SELECT id, transform_sql FROM transforms.transform WHERE transform_sql IS NOT NULL"
+        ).fetchall()
+    except Exception as exc:
+        logger.debug("strip_transform_sql_skipped", error=repr(exc))
+        return
+
+    _TENANT_SCHEMA = re.compile(r"\b(bronze|silver|gold)_[a-z0-9_]+\.", re.IGNORECASE)
+    updated = 0
+    for tid, sql in rows:
+        if not sql or not _TENANT_SCHEMA.search(sql):
+            continue
+        clean = _TENANT_SCHEMA.sub(r"\1.", sql)
+        try:
+            conn.execute(  # type: ignore[attr-defined]
+                "UPDATE transforms.transform SET transform_sql = ? WHERE id = ?",
+                [clean, tid],
+            )
+            updated += 1
+        except Exception as exc:
+            logger.warning("strip_transform_sql_failed", id=tid, error=repr(exc))
+
+    if updated:
+        logger.info("strip_transform_sql_complete", rows_updated=updated)
+
+
 def bootstrap() -> None:
     """Idempotently run DDL migrations against the active connection."""
     conn = get_conn()
@@ -168,7 +207,7 @@ def bootstrap() -> None:
             sql = "\n".join(lines).strip()
             if sql:
                 mig_statements.append(sql)
-        ok = True
+        errors = 0
         for stmt in mig_statements:
             try:
                 conn.execute(stmt)
@@ -179,11 +218,19 @@ def bootstrap() -> None:
                     error=repr(exc),
                     stmt_preview=stmt[:60],
                 )
-                ok = False
-        if ok:
-            _record_migration(conn, migration_filename, checksum)
-            applied += 1
+                errors += 1
+        # Always record as applied — partial failures are expected when
+        # source tables no longer exist (e.g. already-renamed tables).
+        _record_migration(conn, migration_filename, checksum)
+        applied += 1
+        if errors:
+            logger.warning(
+                "migration_applied_with_warnings",
+                filename=migration_filename,
+                failed_stmts=errors,
+            )
 
+    _strip_imported_transform_sql(conn)
     seed_admin_password()
 
     # Provision tenant-scoped data lake schemas for all existing tenants

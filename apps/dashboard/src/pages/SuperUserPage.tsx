@@ -300,7 +300,7 @@ export default function SuperUserPage() {
 
         {tenantsLoading && <p className="text-[11px] text-j-dim">Loading…</p>}
 
-        <div className="border border-j-border rounded overflow-hidden">
+        <div className="border border-j-border rounded overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-j-border bg-j-bg">
@@ -380,7 +380,7 @@ export default function SuperUserPage() {
 
         {suLoading && <p className="text-[11px] text-j-dim">Loading…</p>}
 
-        <div className="border border-j-border rounded overflow-hidden">
+        <div className="border border-j-border rounded overflow-x-auto">
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-j-border bg-j-bg">

@@ -303,8 +303,11 @@ function MarkdownPreview({ content }: { content: string }) {
                   </span>
                 </div>
               )}
-              <pre className="p-4 bg-j-bg overflow-x-auto">
-                <code className="font-mono text-[11px] leading-relaxed text-j-text whitespace-pre">{block.body}</code>
+              <pre className="flex bg-j-bg overflow-x-auto">
+                <span className="select-none text-right font-mono text-[11px] leading-relaxed text-j-border shrink-0 px-3 py-4 border-r border-j-border/30 whitespace-pre">
+                  {block.body.split('\n').map((_, i) => i + 1).join('\n')}
+                </span>
+                <code className="font-mono text-[11px] leading-relaxed text-j-text whitespace-pre pl-4 py-4 flex-1">{block.body}</code>
               </pre>
             </div>
           )
@@ -402,6 +405,7 @@ function DashboardList({
 // ── Config editor ─────────────────────────────────────────────────────────────
 
 function ConfigEditor({ onSave, saving }: { onSave: (c: string) => void; saving: boolean }) {
+  const gutterRef = useRef<HTMLDivElement>(null)
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-config'],
     queryFn: api.dashboards.getConfig,
@@ -454,15 +458,27 @@ function ConfigEditor({ onSave, saving }: { onSave: (c: string) => void; saving:
           Edit <code className="text-j-text">_API</code> to change the endpoint — all dashboards inherit it. Not stored in .md files. ⌘S to save.
         </span>
       </div>
-      <textarea
-        value={content}
-        onChange={(e) => { setContent(e.target.value); setDirty(e.target.value !== data?.content) }}
-        onKeyDown={handleKeyDown}
-        spellCheck={false}
-        className="flex-1 resize-none bg-j-bg text-j-text font-mono text-[12px] leading-relaxed
-          p-4 border-0 outline-none focus:outline-none selection:bg-j-accent-dim"
-        style={{ tabSize: 2 }}
-      />
+      <div className="flex flex-1 overflow-hidden">
+        <div
+          ref={gutterRef}
+          aria-hidden="true"
+          className="select-none text-right font-mono text-[12px] leading-relaxed text-j-border/50 bg-j-bg border-r border-j-border/30 overflow-hidden shrink-0 px-3 py-4"
+        >
+          {content.split('\n').map((_, i) => (
+            <div key={i}>{i + 1}</div>
+          ))}
+        </div>
+        <textarea
+          value={content}
+          onChange={(e) => { setContent(e.target.value); setDirty(e.target.value !== data?.content) }}
+          onKeyDown={handleKeyDown}
+          onScroll={(e) => { if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop }}
+          spellCheck={false}
+          className="flex-1 resize-none bg-j-bg text-j-text font-mono text-[12px] leading-relaxed
+            pl-4 pr-4 py-4 border-0 outline-none focus:outline-none selection:bg-j-accent-dim"
+          style={{ tabSize: 2 }}
+        />
+      </div>
     </div>
   )
 }
@@ -480,6 +496,7 @@ function EditorPanel({
   saving: boolean
   onDelete: () => void
 }) {
+  const gutterRef = useRef<HTMLDivElement>(null)
   const [content, setContent] = useState(detail.content)
   const [dirty, setDirty] = useState(false)
   const [mode, setMode] = useState<PanelMode>('preview')
@@ -584,15 +601,27 @@ function EditorPanel({
 
       {/* Content */}
       {mode === 'edit' ? (
-        <textarea
-          value={content}
-          onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
-          className="flex-1 resize-none bg-j-bg text-j-text font-mono text-[12px] leading-relaxed
-            p-4 border-0 outline-none focus:outline-none selection:bg-j-accent-dim"
-          style={{ tabSize: 2 }}
-        />
+        <div className="flex flex-1 overflow-hidden">
+          <div
+            ref={gutterRef}
+            aria-hidden="true"
+            className="select-none text-right font-mono text-[12px] leading-relaxed text-j-border/50 bg-j-bg border-r border-j-border/30 overflow-hidden shrink-0 px-3 py-4"
+          >
+            {content.split('\n').map((_, i) => (
+              <div key={i}>{i + 1}</div>
+            ))}
+          </div>
+          <textarea
+            value={content}
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onScroll={(e) => { if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop }}
+            spellCheck={false}
+            className="flex-1 resize-none bg-j-bg text-j-text font-mono text-[12px] leading-relaxed
+              pl-4 pr-4 py-4 border-0 outline-none focus:outline-none selection:bg-j-accent-dim"
+            style={{ tabSize: 2 }}
+          />
+        </div>
       ) : (
         <MarkdownPreview content={content} />
       )}

@@ -95,6 +95,14 @@ export interface Collection {
   total: number
 }
 
+export interface ImportResult {
+  collection: string
+  entities:   { created: string[]; updated: string[]; skipped: string[] }
+  transforms: { created: string[]; updated: string[]; skipped: string[] }
+  connectors: { created: string[]; skipped: string[] }
+  errors: string[]
+}
+
 export interface Entity {
   id: string
   tenant_id: string
@@ -455,7 +463,7 @@ export const api = {
       request<{ access_token: string; refresh_token: string }>('/auth/refresh', {
         method: 'POST', body: JSON.stringify({ refresh_token }),
       }),
-    me: () => request<{ user_id: string; email: string; tenant_id: string | null; role: string | null; is_superuser: boolean }>('/auth/me'),
+    me: () => request<{ user_id: string; email: string; tenant_id: string | null; tenant_name: string | null; role: string | null; is_superuser: boolean }>('/auth/me'),
     logout: () => { clearTokens() },
     acceptInvite: (token: string, display_name: string, password: string) =>
       request<{ access_token: string; refresh_token: string; token_type: string }>(
@@ -563,6 +571,26 @@ export const api = {
 
   collections: {
     list: () => request<Collection[]>('/collections'),
+    exportUrl: (name: string) => `/api/v1/collections/${encodeURIComponent(name)}/export`,
+    importCollection: (file: File, overwrite: boolean) => {
+      const form = new FormData()
+      form.append('file', file)
+      const tid = getActiveTenantId()
+      return fetch(`/api/v1/collections/import?overwrite=${overwrite}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          ...(tid ? { 'X-Tenant-ID': tid } : {}),
+        },
+        body: form,
+      }).then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({ detail: r.statusText })) as { detail?: string }
+          throw new Error(body.detail ?? `HTTP ${r.status}`)
+        }
+        return r.json() as Promise<ImportResult>
+      })
+    },
   },
 
   tenant: {

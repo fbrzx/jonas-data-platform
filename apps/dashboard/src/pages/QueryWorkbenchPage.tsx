@@ -118,6 +118,7 @@ export default function QueryWorkbenchPage() {
   const [result, setResult] = useState<QueryResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const gutterRef = useRef<HTMLDivElement>(null)
 
   const { data: tables = [] } = useQuery<TableInfo[]>({
     queryKey: ['query-tables'],
@@ -275,15 +276,27 @@ export default function QueryWorkbenchPage() {
               ) : '▶ Run'}
             </button>
           </div>
-          <textarea
-            ref={textareaRef}
-            value={sql}
-            onChange={e => setSql(e.target.value)}
-            onKeyDown={handleKeyDown}
-            spellCheck={false}
-            className="w-full h-36 px-4 py-3 font-mono text-[12px] text-j-text bg-transparent resize-none outline-none placeholder-j-border"
-            placeholder="SELECT * FROM silver.orders_cleaned LIMIT 20"
-          />
+          <div className="flex">
+            <div
+              ref={gutterRef}
+              aria-hidden="true"
+              className="select-none text-right font-mono text-[12px] leading-relaxed text-j-border/50 border-r border-j-border/30 overflow-hidden shrink-0 px-3 py-3 h-36 bg-transparent"
+            >
+              {sql.split('\n').map((_, i) => (
+                <div key={i}>{i + 1}</div>
+              ))}
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={sql}
+              onChange={e => setSql(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onScroll={(e) => { if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop }}
+              spellCheck={false}
+              className="flex-1 h-36 pl-4 pr-4 py-3 font-mono text-[12px] text-j-text bg-transparent resize-none outline-none placeholder-j-border"
+              placeholder="SELECT * FROM silver.orders_cleaned LIMIT 20"
+            />
+          </div>
         </div>
 
         {/* Results */}
