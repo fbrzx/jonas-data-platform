@@ -105,8 +105,9 @@ export default function ActivityChart({ connectorDays, transformDays, days = 14 
 
     ref.current.innerHTML = ''
     ref.current.append(chart)
+    const el = ref.current
     return () => {
-      if (ref.current) ref.current.innerHTML = ''
+      if (el) el.innerHTML = ''
     }
   }, [connectorDays, transformDays, days])
 

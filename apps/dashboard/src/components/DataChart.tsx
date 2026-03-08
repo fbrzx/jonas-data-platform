@@ -325,10 +325,11 @@ export default function DataChart({ columns, rows }: Props) {
 
     ref.current.innerHTML = ''
     ref.current.append(chart)
+    const el = ref.current
     return () => {
-      if (ref.current) ref.current.innerHTML = ''
+      if (el) el.innerHTML = ''
     }
-  }, [columns, rows, choice])
+  }, [columns, rows, choice, colValues])
 
   if (!rows.length) return null
 
