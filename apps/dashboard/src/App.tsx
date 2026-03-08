@@ -15,35 +15,38 @@ import TenantConfigPage from './pages/TenantConfigPage'
 import TenantUsersPage from './pages/TenantUsersPage'
 import DashboardsPage from './pages/DashboardsPage'
 import CollectionsPage from './pages/CollectionsPage'
+import QueryWorkbenchPage from './pages/QueryWorkbenchPage'
 import { api, getRoleFromToken, getToken, isLoggedIn } from './lib/api'
 import type { ChatMessage } from './lib/api'
 
 const navItems = [
-  { to: '/',           label: 'Overview',   glyph: '◉', adminOnly: false },
-  { to: '/chat',       label: 'Chat',       glyph: '◈', adminOnly: false },
+  { to: '/',            label: 'Overview',   glyph: '◉', adminOnly: false },
+  { to: '/chat',        label: 'Chat',       glyph: '◈', adminOnly: false },
+  { to: '/query',       label: 'Workbench',  glyph: '⌗', adminOnly: false },
   { to: '/collections', label: 'Collections', glyph: '◧', adminOnly: false },
   { to: '/catalogue',   label: 'Catalogue',  glyph: '◫', adminOnly: false },
-  { to: '/transforms', label: 'Transforms', glyph: '⟳', adminOnly: false },
-  { to: '/connectors', label: 'Connectors', glyph: '⌥', adminOnly: false },
-  { to: '/lineage',    label: 'Lineage',    glyph: '⬡', adminOnly: false },
-  { to: '/dashboards', label: 'Dashboards', glyph: '▦', adminOnly: false },
-  { to: '/audit',      label: 'Audit',      glyph: '◎', adminOnly: false },
-  { to: '/team',       label: 'Team',       glyph: '⊛', adminOnly: true  },
-  { to: '/settings',   label: 'Settings',   glyph: '⊙', adminOnly: true  },
+  { to: '/transforms',  label: 'Transforms', glyph: '⟳', adminOnly: false },
+  { to: '/connectors',  label: 'Connectors', glyph: '⌥', adminOnly: false },
+  { to: '/lineage',     label: 'Lineage',    glyph: '⬡', adminOnly: false },
+  { to: '/dashboards',  label: 'Dashboards', glyph: '▦', adminOnly: false },
+  { to: '/audit',       label: 'Audit',      glyph: '◎', adminOnly: false },
+  { to: '/team',        label: 'Team',       glyph: '⊛', adminOnly: true  },
+  { to: '/settings',    label: 'Settings',   glyph: '⊙', adminOnly: true  },
 ]
 
 const ROUTE_LABELS: Record<string, string> = {
-  '/':           'Overview',
-  '/chat':       'Chat with Jonas',
+  '/':            'Overview',
+  '/chat':        'Chat with Jonas',
+  '/query':       'Query Workbench',
   '/collections': 'Collections',
   '/catalogue':   'Catalogue',
-  '/transforms': 'Transforms',
-  '/connectors': 'Connectors',
-  '/lineage':    'Data Lineage',
-  '/dashboards': 'Dashboards',
-  '/audit':      'Audit',
-  '/team':       'Team',
-  '/settings':   'Settings',
+  '/transforms':  'Transforms',
+  '/connectors':  'Connectors',
+  '/lineage':     'Data Lineage',
+  '/dashboards':  'Dashboards',
+  '/audit':       'Audit',
+  '/team':        'Team',
+  '/settings':    'Settings',
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -251,6 +254,7 @@ export default function App() {
                       setInput={setChatInput}
                     />
                   } />
+                  <Route path="query"       element={<QueryWorkbenchPage />} />
                   <Route path="collections" element={<CollectionsPage />} />
                   <Route path="catalogue"   element={<CataloguePage />} />
                   <Route path="transforms" element={<TransformsPage />} />

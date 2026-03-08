@@ -13,6 +13,7 @@
 | 7 | 5-tier RBAC (owner/admin/engineer/analyst/viewer), tenant isolation tests, rate limiting, secrets-at-rest (Fernet), audit completeness, CORS config |
 | 8 | Observable dashboards + live preview, DataChart (auto-detect chart type), ActivityChart (SVG dual-bar), parquet backup, lineage arrowheads, agent error surfacing |
 | 9 | StorageBackend protocol (LocalDuckDB / MotherDuck), S3/GCS parquet via httpfs, collections (tagging entities/transforms/connectors), RBAC frontend enforcement |
+| 10 | CI/CD (deploy workflow, Docker multi-arch), graceful shutdown, structlog, migration tracking, query workbench |
 
 ---
 
@@ -51,17 +52,19 @@
 | 5 | Metadata in Postgres | ↳ Deferred — all metadata stays in DuckDB for now |
 | 6 | Per-tenant connection pooling | ↳ Deferred to Phase 10 |
 
-## Phase 10 — Production Readiness
+## Phase 10 — Production Readiness ✅ COMPLETE
 
 **Goal**: Everything needed to deploy beyond localhost.
 
-| # | Work Item | Notes |
-|---|-----------|-------|
-| 1 | CI/CD pipeline | GitHub Actions: lint, test, build, deploy |
-| 2 | Containerised deployment | Multi-stage Docker, health checks, graceful shutdown |
-| 3 | Observability | Structured logging (structlog), metrics (Prometheus), tracing (OpenTelemetry) |
-| 4 | Schema migrations | Proper migration tool (alembic-style) instead of DDL-on-boot |
-| 5 | Backup / restore | Tenant data export/import, disaster recovery |
+| # | Work Item | Status |
+|---|-----------|--------|
+| 1 | CI/CD pipeline | ✅ `.github/workflows/deploy.yml` — Docker build + push to GHCR; multi-arch (amd64+arm64); lint+test gate |
+| 2 | Containerised deployment | ✅ Graceful shutdown via `--timeout-graceful-shutdown 10` in Dockerfile CMD |
+| 3 | Structured logging (structlog) | ✅ `src/logging_config.py`; JSON by default, text in dev; all key modules use structlog |
+| 4 | Schema migration tracking | ✅ `platform.schema_migration` table (migration 011); bootstrap records applied files with SHA-256 checksums; skips already-applied |
+| 5 | Query Workbench | ✅ `POST /api/v1/query` + `GET /api/v1/query/tables`; SELECT-only enforcement; role-scoped layer access; React page with SQL editor, results table, chart toggle |
+| 6 | Metrics / Tracing | ↳ Deferred — add Prometheus `/metrics` + OpenTelemetry in Phase 11 |
+| 7 | Backup / restore | ↳ Deferred — parquet backup already in place; full export/import API deferred |
 
 ---
 
@@ -69,8 +72,10 @@
 
 - [ ] "Visualise" button in agent chat for tabular results
 - [ ] Lineage graph: D3 force-directed or dagre DAG with zoom/pan
-- [ ] Query workbench: SQL editor + results + chart (DuckDB Studio lite)
+- [x] Query workbench: SQL editor + results + chart (done in Phase 10)
 - [ ] Demo personas for owner + engineer (seed scripts)
+- [ ] Prometheus `/metrics` endpoint
+- [ ] OpenTelemetry tracing (spans per request + LLM call)
 
 ## LLM Provider Notes
 
