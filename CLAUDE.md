@@ -25,6 +25,8 @@ Before writing any code, read these docs in order:
 - Phase 6 complete: event-driven transforms, agent memory, code refactoring, JSON skills
 - Phase 7 complete: RBAC 5-role model, configurable CORS, tenant isolation tests, rate limiting, audit completeness, secrets-at-rest (Fernet), input validation caps
 - Phase 8 complete: audit stats/chart, DataChart in Catalogue, parquet backup, improved lineage, agent error handling, Observable dashboards with live preview
+- Phase 9 complete: StorageBackend protocol (LocalDuckDB/MotherDuck), S3/GCS parquet via httpfs, collections, RBAC frontend enforcement
+- Phase 10 complete: CI/CD deploy workflow (GHCR, multi-arch), graceful shutdown, structlog structured logging, migration version tracking, query workbench
 
 ## Phase 1 Status (DONE)
 
@@ -135,6 +137,23 @@ Key files:
 - `services/api/src/dashboards/router.py` — REST endpoints
 - `services/api/src/agent/handlers/dashboards.py` — `create_dashboard` tool handler + `jonas.config.js` template
 - `apps/dashboard/src/pages/DashboardsPage.tsx` — list, editor, live preview renderer
+
+## Phase 10 Status (COMPLETE)
+
+> Production readiness
+
+1. ✅ **CI/CD deploy workflow** — `.github/workflows/deploy.yml`; triggers on push to main/master or semver tag; builds multi-arch Docker image (amd64+arm64) and pushes to GHCR; includes lint+test gate and step summary
+2. ✅ **Graceful shutdown** — `uvicorn --timeout-graceful-shutdown 10` in Dockerfile CMD; in-flight requests drain before SIGTERM kills the process
+3. ✅ **Structured logging (structlog)** — `src/logging_config.py`; JSON output by default (LOG_FORMAT=json), coloured text in dev (LOG_FORMAT=text); all key log calls use `structlog.get_logger()` with contextual key-value pairs
+4. ✅ **Migration version tracking** — `platform.schema_migration` table (migration 011); `bootstrap()` records filename + SHA-256 checksum of each applied migration; skips already-applied migrations on restart
+5. ✅ **Query Workbench** — `POST /api/v1/query` (SELECT-only, role-scoped layer access, 500-row cap); `GET /api/v1/query/tables` (table browser for autocomplete); `QueryWorkbenchPage.tsx` with SQL editor (Tab→indent, Ctrl+Enter→run), table browser sidebar, results table, chart toggle
+
+Key files:
+- `services/api/src/logging_config.py` — structlog setup
+- `services/api/src/query/router.py` — query workbench backend
+- `apps/dashboard/src/pages/QueryWorkbenchPage.tsx` — SQL editor UI
+- `.github/workflows/deploy.yml` — Docker build + push workflow
+- `db/011_migration_tracking.sql` — schema_migration DDL
 
 ## Technical Notes
 

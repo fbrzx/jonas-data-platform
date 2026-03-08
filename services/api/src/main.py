@@ -1,8 +1,8 @@
-import logging
 import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,11 +21,14 @@ from src.db.connection import close_connection, init_connection
 from src.db.init import bootstrap
 from src.integrations.router import router as integrations_router
 from src.limiter import limiter
+from src.logging_config import configure_logging
+from src.query.router import router as query_router
 from src.scheduler import scheduler as job_scheduler
 from src.tenant.router import router as tenant_router
 from src.transforms.router import router as transforms_router
 
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = structlog.get_logger(__name__)
 
 _WEAK_SECRET = "change_me_in_production"
 
@@ -37,10 +40,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "API_SECRET_KEY is still the default placeholder — set a strong secret in .env",
             stacklevel=1,
         )
+    logger.info("startup", host=settings.api_host, port=settings.api_port)
     await init_connection()
     bootstrap()
     job_scheduler.start(app)
     yield
+    logger.info("shutdown")
     job_scheduler.stop()
     await close_connection()
 
@@ -128,6 +133,12 @@ app.include_router(
     collections_router,
     prefix="/api/v1/collections",
     tags=["collections"],
+    dependencies=[Depends(docs_bearer_auth)],
+)
+app.include_router(
+    query_router,
+    prefix="/api/v1/query",
+    tags=["query"],
     dependencies=[Depends(docs_bearer_auth)],
 )
 

@@ -5,10 +5,15 @@ The DDL file itself creates all required schemas (platform, catalogue, transform
 integrations, permissions, audit, bronze, silver, gold).
 """
 
+import hashlib
 import pathlib
 from datetime import UTC, datetime
 
+import structlog
+
 from src.db.connection import get_conn
+
+logger = structlog.get_logger(__name__)
 
 _DDL_FILENAME = "001_core_duckdb.sql"
 _MIGRATIONS = [
@@ -21,7 +26,33 @@ _MIGRATIONS = [
     "008_agent_memory.sql",
     "009_unique_entity_name.sql",
     "010_collections.sql",
+    "011_migration_tracking.sql",
 ]
+
+
+def _sha256(content: str) -> str:
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
+def _is_migration_applied(conn: object, filename: str) -> bool:
+    """Return True if this migration is already recorded in schema_migration."""
+    try:
+        row = conn.execute(  # type: ignore[attr-defined]
+            "SELECT 1 FROM platform.schema_migration WHERE filename = ?", [filename]
+        ).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
+
+def _record_migration(conn: object, filename: str, checksum: str) -> None:
+    try:
+        conn.execute(  # type: ignore[attr-defined]
+            "INSERT OR IGNORE INTO platform.schema_migration (filename, checksum) VALUES (?, ?)",
+            [filename, checksum],
+        )
+    except Exception as exc:
+        logger.warning("migration_record_failed", filename=filename, error=str(exc))
 
 _ORDERS_JSON_TRANSFORM_SQL = """CREATE OR REPLACE TABLE silver.orders_cleaned AS
 WITH parsed AS (
@@ -90,7 +121,7 @@ def _migrate_legacy_orders_transform_sql() -> None:
             ],
         )
     except Exception as exc:
-        print(f"[db.init] Legacy transform SQL migration skipped: {exc!r}")
+        logger.debug("legacy_transform_migration_skipped", error=repr(exc))
 
 
 def bootstrap() -> None:
@@ -99,28 +130,36 @@ def bootstrap() -> None:
     DDL_PATH = _find_ddl()
 
     if not DDL_PATH.exists():
-        print(f"[db.init] DDL file not found at {DDL_PATH} — skipping")
+        logger.warning("ddl_not_found", path=str(DDL_PATH))
         return
 
     ddl = DDL_PATH.read_text()
-    # DuckDB execexecutemany doesn't handle multi-statement strings well;
+    # DuckDB executemany doesn't handle multi-statement strings well;
     # split on semicolons and execute each statement individually.
     statements = [s.strip() for s in ddl.split(";") if s.strip()]
     for stmt in statements:
         try:
             conn.execute(stmt)
         except Exception as exc:
-            print(f"[db.init] Warning: {exc!r} for statement starting: {stmt[:60]!r}")
+            logger.debug("ddl_stmt_warning", error=repr(exc), stmt_preview=stmt[:60])
 
     _migrate_legacy_orders_transform_sql()
 
     # Run sequential migrations
+    applied = 0
+    skipped = 0
     for migration_filename in _MIGRATIONS:
         migration_path = DDL_PATH.parent / migration_filename
         if not migration_path.exists():
-            print(f"[db.init] Migration not found: {migration_path} — skipping")
+            logger.warning("migration_not_found", filename=migration_filename)
             continue
         migration_sql = migration_path.read_text()
+        checksum = _sha256(migration_sql)
+
+        if _is_migration_applied(conn, migration_filename):
+            skipped += 1
+            continue
+
         mig_statements = []
         for s in migration_sql.split(";"):
             # Strip leading comment lines, then check if any SQL remains
@@ -128,13 +167,21 @@ def bootstrap() -> None:
             sql = "\n".join(lines).strip()
             if sql:
                 mig_statements.append(sql)
+        ok = True
         for stmt in mig_statements:
             try:
                 conn.execute(stmt)
             except Exception as exc:
-                print(
-                    f"[db.init] Migration {migration_filename}: {exc!r} (statement: {stmt[:60]!r})"
+                logger.warning(
+                    "migration_stmt_warning",
+                    filename=migration_filename,
+                    error=repr(exc),
+                    stmt_preview=stmt[:60],
                 )
+                ok = False
+        if ok:
+            _record_migration(conn, migration_filename, checksum)
+            applied += 1
 
     seed_admin_password()
 
@@ -145,7 +192,7 @@ def bootstrap() -> None:
         for tid in get_all_tenant_ids(conn):
             provision_tenant_schemas(tid)
     except Exception as exc:
-        print(f"[db.init] Schema provisioning warning: {exc!r}")
+        logger.warning("schema_provisioning_warning", error=repr(exc))
 
     # Decay + prune agent memories for all tenants
     try:
@@ -157,9 +204,14 @@ def bootstrap() -> None:
             decay_memories(str(tid))
             prune_memories(str(tid))
     except Exception as exc:
-        print(f"[db.init] Memory decay/prune warning: {exc!r}")
+        logger.warning("memory_decay_warning", error=repr(exc))
 
-    print(f"[db.init] Bootstrap complete ({len(statements)} statements)")
+    logger.info(
+        "bootstrap_complete",
+        ddl_statements=len(statements),
+        migrations_applied=applied,
+        migrations_skipped=skipped,
+    )
 
 
 def seed_admin_password() -> None:
@@ -187,6 +239,6 @@ def seed_admin_password() -> None:
                     "UPDATE platform.user_account SET password_hash = ? WHERE id = ?",
                     [h, user_id],
                 )
-        print("[db.init] Demo user passwords set")
+        logger.info("demo_passwords_seeded")
     except Exception as exc:
-        print(f"[db.init] Could not seed user passwords: {exc!r}")
+        logger.warning("seed_passwords_failed", error=repr(exc))
