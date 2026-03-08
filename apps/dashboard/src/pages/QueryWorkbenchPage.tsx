@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { api } from '../lib/api'
+import { getToken } from '../lib/api'
 import DataChart from '../components/DataChart'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ export default function QueryWorkbenchPage() {
   const { data: tables = [] } = useQuery<TableInfo[]>({
     queryKey: ['query-tables'],
     queryFn: () => fetch('/api/v1/query/tables', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('jonas_token') ?? ''}` },
+      headers: { Authorization: `Bearer ${getToken()}` },
     }).then(r => r.json()) as Promise<TableInfo[]>,
     staleTime: 60_000,
   })
@@ -133,7 +133,7 @@ export default function QueryWorkbenchPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('jonas_token') ?? ''}`,
+          Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({ sql: sqlQuery }),
       }).then(async r => {
