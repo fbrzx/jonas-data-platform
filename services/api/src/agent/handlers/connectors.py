@@ -64,8 +64,9 @@ def handle(
 
     # ── discover_api ─────────────────────────────────────────────────────────
     if tool_name == "discover_api":
-
         import httpx
+
+        from src.security.ssrf import check_url
 
         url = tool_input.get("url", "").strip()
         if not url:
