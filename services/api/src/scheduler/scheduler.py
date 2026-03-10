@@ -124,7 +124,12 @@ def _run_connector_pull(connector_id: str, tenant_id: str) -> None:
         else:
             source = str(integration["name"])
 
-        result = ingest.land_api_pull(url, headers, source, tenant_id, connector_id)
+        json_path: str = config.get("json_path", "")
+        pagination: dict[str, Any] = config.get("pagination") or {}
+        result = ingest.land_api_pull(
+            url, headers, source, tenant_id, connector_id,
+            json_path=json_path, pagination=pagination,
+        )
         logger.info(
             "[scheduler] connector %s pull done — %d/%d rows",
             connector_id,

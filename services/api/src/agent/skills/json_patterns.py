@@ -38,13 +38,4 @@ FROM silver.{source}
 GROUP BY parent_id
 ```
 
-### Cross-format join (webhook bronze + CSV bronze)
-```sql
-SELECT
-    json_extract_string(o.payload, '$.order_id')    AS order_id,
-    c.customer_name
-FROM bronze.orders o          -- webhook format: use json_extract
-JOIN bronze.customers c       -- csv format: use columns directly
-  ON json_extract_string(o.payload, '$.customer_id') = c.customer_id
-```
 """

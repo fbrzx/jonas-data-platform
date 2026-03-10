@@ -3,10 +3,10 @@
 import json
 from typing import Any
 
-from . import catalogue, connectors, dashboards, memory, query
+from . import catalogue, connectors, dashboards, memory, query, smart_import
 from . import transforms as transforms_handler
 
-_MODULES = [catalogue, query, connectors, transforms_handler, memory, dashboards]
+_MODULES = [catalogue, query, connectors, transforms_handler, memory, dashboards, smart_import]
 
 
 def run_tool(

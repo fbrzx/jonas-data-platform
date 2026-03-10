@@ -138,10 +138,12 @@ def land_batch_csv(
     tenant_id: str,
     integration_id: str | None = None,
 ) -> dict[str, Any]:
-    """Parse a CSV upload and land rows into the bronze layer."""
-    conn = get_conn()
-    table = _bronze_table(source, tenant_id)
-    _ensure_bronze_schema(conn, tenant_id)
+    """Parse a CSV upload and land rows as JSON payloads into the bronze layer.
+
+    Each CSV row is wrapped in the standard webhook format
+    (id, tenant_id, ingested_at, source, payload JSON, metadata JSON)
+    for uniform traceability across all ingestion types.
+    """
     started_at = _now()
     text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
@@ -152,57 +154,78 @@ def land_batch_csv(
         return {
             "rows_received": 0,
             "rows_landed": 0,
-            "target_table": table,
+            "target_table": _bronze_table(source, tenant_id),
             "errors": [],
             "run_id": run_id,
         }
 
-    raw_cols = list(rows[0].keys())  # type: ignore[union-attr]
-    cols = [_safe_col(c) for c in raw_cols]
-    col_defs = ", ".join(f"{c} VARCHAR" for c in cols)
-    conn.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {table} (
-            _id VARCHAR PRIMARY KEY,
-            _tenant_id VARCHAR NOT NULL,
-            _ingested_at VARCHAR NOT NULL,
-            {col_defs}
-        )
-        """
-    )
-
-    errors: list[str] = []
-    landed = 0
-    placeholders = ", ".join("?" * (len(cols) + 3))
+    all_errors: list[str] = []
+    total_landed = 0
     for i, row in enumerate(rows):
-        try:
-            values = [str(uuid.uuid4()), tenant_id, _now()] + [
-                row.get(c, "") for c in raw_cols
-            ]
-            conn.execute(
-                f"INSERT INTO {table} VALUES ({placeholders})", values
-            )  # noqa: S608
-            landed += 1
-        except Exception as exc:
-            errors.append(f"Row {i}: {exc}")
+        record = dict(row)
+        result = land_webhook(
+            source,
+            record,
+            {"format": "csv", "row_number": i},
+            tenant_id,
+            _fire_trigger=False,
+        )
+        total_landed += result["rows_landed"]
+        if result.get("errors"):
+            all_errors.extend(f"Row {i}: {e}" for e in result["errors"])
 
-    rejected = len(rows) - landed
-    status = "success" if not errors else ("partial" if landed > 0 else "failed")
-    run_id = _record_run(
-        integration_id, status, started_at, len(rows), landed, rejected, errors
+    rejected = len(rows) - total_landed
+    status = (
+        "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
     )
-    if landed > 0:
-        from src.storage.parquet import export_bronze
-
-        export_bronze(tenant_id, source, table, conn)
+    run_id = _record_run(
+        integration_id, status, started_at, len(rows), total_landed, rejected, all_errors
+    )
+    if total_landed > 0:
         fire_on_data_changed(source, "bronze", tenant_id)
     return {
         "rows_received": len(rows),
-        "rows_landed": landed,
-        "target_table": table,
-        "errors": errors,
+        "rows_landed": total_landed,
+        "target_table": _bronze_table(source, tenant_id),
+        "errors": all_errors,
         "run_id": run_id,
     }
+
+
+def _resolve_json_path(data: Any, path: str) -> Any:
+    """Navigate a dot-notation path into nested dicts. e.g. 'data.items' → data['data']['items']."""
+    if not path:
+        return data
+    for part in path.lstrip("$.").split("."):
+        if isinstance(data, dict):
+            data = data.get(part)
+        else:
+            return None
+    return data
+
+
+# Hard safety caps for pagination
+_MAX_PAGES_CAP = 500
+_MAX_RECORDS_CAP = 50_000
+
+
+def _fetch_page(
+    url: str,
+    headers: dict[str, str],
+    params: dict[str, Any] | None = None,
+) -> Any:
+    """Fetch a single page. Returns (response, data) or raises."""
+    import httpx
+
+    ssrf_err = check_url(url)
+    if ssrf_err:
+        raise ValueError(ssrf_err)
+
+    response = httpx.get(
+        url, headers=headers, params=params, timeout=30, follow_redirects=False
+    )
+    response.raise_for_status()
+    return response
 
 
 def land_api_pull(
@@ -211,94 +234,195 @@ def land_api_pull(
     source: str,
     tenant_id: str,
     integration_id: str | None = None,
+    json_path: str = "",
+    pagination: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Fetch JSON from a remote URL and land the result into the bronze layer."""
-    import httpx
+    """Fetch JSON from a remote URL with optional pagination and land into bronze.
+
+    Pagination strategies:
+    - offset: increment offset_param by page_size each page
+    - cursor: read cursor_path from response, send as cursor_param
+    - link_header: follow Link rel="next" header
+    - next_url: read next_url_path from response body
+    """
+    import re
 
     started_at = _now()
+    table = _bronze_table(source, tenant_id)
 
-    ssrf_err = check_url(url)
-    if ssrf_err:
-        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [ssrf_err])
-        return {
-            "rows_received": 0,
-            "rows_landed": 0,
-            "target_table": _bronze_table(source, tenant_id),
-            "errors": [ssrf_err],
-            "run_id": run_id,
-        }
+    pagination = pagination or {}
+    strategy = pagination.get("strategy", "")
+    page_size = int(pagination.get("page_size", 100))
+    max_pages = min(int(pagination.get("max_pages", 100)), _MAX_PAGES_CAP)
+
+    all_errors: list[str] = []
+    total_received = 0
+    total_landed = 0
+    page_num = 0
 
     try:
-        # follow_redirects=False prevents SSRF bypass via open redirects
-        response = httpx.get(url, headers=headers, timeout=30, follow_redirects=False)
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        msg = f"HTTP {exc.response.status_code}: {exc.response.text[:200]}"
-        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
-        return {
-            "rows_received": 0,
-            "rows_landed": 0,
-            "target_table": _bronze_table(source, tenant_id),
-            "errors": [msg],
-            "run_id": run_id,
-        }
-    except Exception as exc:
+        if not strategy:
+            # Single-page fetch (backward compatible)
+            response = _fetch_page(url, headers)
+            data = response.json()
+            records = _resolve_json_path(data, json_path)
+            if isinstance(records, dict):
+                records = [records]
+            if not isinstance(records, list):
+                records = [data]
+
+            for record in records:
+                total_received += 1
+                result = land_webhook(
+                    source, record, {"pulled_from": url}, tenant_id, _fire_trigger=False
+                )
+                total_landed += result["rows_landed"]
+                all_errors.extend(result.get("errors", []))
+
+        elif strategy == "offset":
+            offset_param = pagination.get("offset_param", "offset")
+            limit_param = pagination.get("limit_param", "limit")
+            offset = 0
+            while page_num < max_pages and total_received < _MAX_RECORDS_CAP:
+                params = {limit_param: page_size, offset_param: offset}
+                response = _fetch_page(url, headers, params=params)
+                data = response.json()
+                records = _resolve_json_path(data, json_path)
+                if not isinstance(records, list):
+                    records = [records] if records else []
+                if not records:
+                    break
+                for record in records:
+                    total_received += 1
+                    result = land_webhook(
+                        source, record, {"pulled_from": url, "page": page_num},
+                        tenant_id, _fire_trigger=False,
+                    )
+                    total_landed += result["rows_landed"]
+                    all_errors.extend(result.get("errors", []))
+                page_num += 1
+                if len(records) < page_size:
+                    break
+                offset += page_size
+
+        elif strategy == "cursor":
+            cursor_param = pagination.get("cursor_param", "cursor")
+            cursor_path = pagination.get("cursor_path", "meta.next_cursor")
+            cursor_value: str | None = None
+            while page_num < max_pages and total_received < _MAX_RECORDS_CAP:
+                params: dict[str, Any] = {}
+                if cursor_value:
+                    params[cursor_param] = cursor_value
+                response = _fetch_page(url, headers, params=params)
+                data = response.json()
+                records = _resolve_json_path(data, json_path)
+                if not isinstance(records, list):
+                    records = [records] if records else []
+                if not records:
+                    break
+                for record in records:
+                    total_received += 1
+                    result = land_webhook(
+                        source, record, {"pulled_from": url, "page": page_num},
+                        tenant_id, _fire_trigger=False,
+                    )
+                    total_landed += result["rows_landed"]
+                    all_errors.extend(result.get("errors", []))
+                page_num += 1
+                cursor_value = _resolve_json_path(data, cursor_path)
+                if not cursor_value:
+                    break
+
+        elif strategy == "link_header":
+            next_url: str | None = url
+            while next_url and page_num < max_pages and total_received < _MAX_RECORDS_CAP:
+                response = _fetch_page(next_url, headers)
+                data = response.json()
+                records = _resolve_json_path(data, json_path)
+                if not isinstance(records, list):
+                    records = [records] if records else []
+                for record in records:
+                    total_received += 1
+                    result = land_webhook(
+                        source, record, {"pulled_from": next_url, "page": page_num},
+                        tenant_id, _fire_trigger=False,
+                    )
+                    total_landed += result["rows_landed"]
+                    all_errors.extend(result.get("errors", []))
+                page_num += 1
+                link = response.headers.get("link", "")
+                match = re.search(r'<([^>]+)>;\s*rel="next"', link)
+                next_url = match.group(1) if match else None
+                if next_url:
+                    ssrf_err = check_url(next_url)
+                    if ssrf_err:
+                        all_errors.append(f"SSRF blocked next URL: {next_url}")
+                        break
+
+        elif strategy == "next_url":
+            next_url_path = pagination.get("next_url_path", "next")
+            current_url: str | None = url
+            while current_url and page_num < max_pages and total_received < _MAX_RECORDS_CAP:
+                response = _fetch_page(current_url, headers)
+                data = response.json()
+                records = _resolve_json_path(data, json_path)
+                if not isinstance(records, list):
+                    records = [records] if records else []
+                for record in records:
+                    total_received += 1
+                    result = land_webhook(
+                        source, record, {"pulled_from": current_url, "page": page_num},
+                        tenant_id, _fire_trigger=False,
+                    )
+                    total_landed += result["rows_landed"]
+                    all_errors.extend(result.get("errors", []))
+                page_num += 1
+                next_val = _resolve_json_path(data, next_url_path)
+                if not next_val or not isinstance(next_val, str):
+                    current_url = None
+                else:
+                    ssrf_err = check_url(next_val)
+                    if ssrf_err:
+                        all_errors.append(f"SSRF blocked next URL: {next_val}")
+                        current_url = None
+                    else:
+                        current_url = next_val
+
+        else:
+            all_errors.append(f"Unknown pagination strategy: {strategy}")
+
+    except ValueError as exc:
+        # SSRF or similar validation error
         msg = str(exc)
         run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
         return {
             "rows_received": 0,
             "rows_landed": 0,
-            "target_table": _bronze_table(source, tenant_id),
+            "target_table": table,
             "errors": [msg],
             "run_id": run_id,
         }
-
-    try:
-        data = response.json()
     except Exception as exc:
-        msg = f"Response is not valid JSON: {exc}"
-        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
-        return {
-            "rows_received": 0,
-            "rows_landed": 0,
-            "target_table": _bronze_table(source, tenant_id),
-            "errors": [msg],
-            "run_id": run_id,
-        }
+        msg = str(exc)
+        all_errors.append(msg)
 
-    # Normalise to a list of records
-    records: list[Any] = data if isinstance(data, list) else [data]
-
-    all_errors: list[str] = []
-    total_landed = 0
-    for record in records:
-        result = land_webhook(
-            source, record, {"pulled_from": url}, tenant_id, _fire_trigger=False
-        )
-        total_landed += result["rows_landed"]
-        all_errors.extend(result.get("errors", []))
-
-    rejected = len(records) - total_landed
+    rejected = total_received - total_landed
     status = (
         "success" if not all_errors else ("partial" if total_landed > 0 else "failed")
     )
     run_id = _record_run(
-        integration_id,
-        status,
-        started_at,
-        len(records),
-        total_landed,
-        rejected,
-        all_errors,
+        integration_id, status, started_at,
+        total_received, total_landed, rejected, all_errors,
     )
     if total_landed > 0:
         fire_on_data_changed(source, "bronze", tenant_id)
     return {
-        "rows_received": len(records),
+        "rows_received": total_received,
         "rows_landed": total_landed,
-        "target_table": _bronze_table(source, tenant_id),
+        "target_table": table,
         "errors": all_errors,
         "run_id": run_id,
+        "pages_fetched": max(page_num, 1) if not strategy else page_num,
     }
 
 

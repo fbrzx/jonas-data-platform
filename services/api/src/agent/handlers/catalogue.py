@@ -95,10 +95,8 @@ def handle(
                 "payload",
                 "metadata",
             }
-            _CSV_SIGNATURE = {"_id", "_tenant_id", "_ingested_at"}
             phys_set = set(phys_cols)
             is_webhook = _WEBHOOK_SIGNATURE.issubset(phys_set)
-            is_csv = _CSV_SIGNATURE.issubset(phys_set) and "payload" not in phys_set
 
             entity["physical_columns"] = phys_cols
             if is_webhook:
@@ -139,12 +137,6 @@ def handle(
                             entity["payload_keys"] = list(sample[0].keys())[:20]
                 except Exception:
                     pass
-            elif is_csv:
-                entity["storage_format"] = "csv"
-                entity["sql_hint"] = (
-                    "CSV FORMAT: use physical_columns directly (strip the leading _ from _id/_tenant_id/_ingested_at). "  # noqa: E501
-                    "All user data columns are VARCHAR — CAST as needed."
-                )
             else:
                 entity["storage_format"] = "flat"
                 entity["sql_hint"] = (
