@@ -22,7 +22,7 @@ def _isolated_db():
     backend._conn = duckdb.connect(":memory:")
     db._backend = backend
     bootstrap()
-    # Provision test tenant schemas (bootstrap only creates for tenant-acme)
+    # Provision test tenant schemas
     conn = db.get_conn()
     from src.db.tenant_schemas import safe_tenant_id
 
