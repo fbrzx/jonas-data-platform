@@ -11,7 +11,5 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    // Serve index.html for all routes so React Router handles them
-    historyApiFallback: true,
   },
 })
