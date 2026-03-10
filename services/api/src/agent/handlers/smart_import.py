@@ -228,29 +228,11 @@ def handle(
             }
             transform = create_transform(transform_data, tenant_id, created_by)
             transform_id = str(transform["id"])
-
-            # Auto-approve: the SQL is machine-generated and already validated.
-            from src.transforms.service import approve_transform, execute_transform
-
-            approve_transform(transform_id, "approve", created_by, tenant_id)
-
-            # Run immediately so the bronze data just landed flows to silver.
-            exec_result = execute_transform(transform_id, tenant_id)
-            exec_errors = exec_result.get("errors", [])
-
             result["transform_id"] = transform_id
-            result["transform_status"] = "approved"
+            result["transform_status"] = "draft — needs admin approval"
             result["transform_sql"] = sql
-            result["silver_rows"] = exec_result.get("rows_affected", 0)
-            if exec_errors:
-                result["silver_errors"] = exec_errors[:5]
             steps.append(
-                f"Created + approved on_change transform 'flatten_{name}' ({transform_id})"
-                + (
-                    f"; silver populated with {result['silver_rows']} rows"
-                    if not exec_errors
-                    else f"; silver errors: {exec_errors[0]}"
-                )
+                f"Created on_change transform 'flatten_{name}' ({transform_id})"
             )
 
             # Register silver entity
