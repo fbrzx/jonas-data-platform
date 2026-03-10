@@ -366,6 +366,105 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["connector_id"],
         },
     },
+    # ── Smart Import ──────────────────────────────────────────────────────────
+    {
+        "name": "smart_import",
+        "description": (
+            "End-to-end data import pipeline: discovers the API, infers schema, "
+            "registers bronze entity, creates connector, ingests all data (with pagination), "
+            "and generates a bronze→silver flattening transform with on_change trigger. "
+            "Use this as the PRIMARY tool for importing new data sources. "
+            "For api_pull: provide url, json_path, headers, and pagination config. "
+            "For webhook/sample: provide sample_data as JSON. "
+            "Returns entity_id, connector_id, transform_id, and rows_landed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Entity name (snake_case, e.g. 'orders', 'sensor_readings')",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What this data represents",
+                },
+                "source_type": {
+                    "type": "string",
+                    "enum": ["api_pull", "webhook", "sample_json"],
+                    "description": (
+                        "How data arrives: "
+                        "'api_pull' (platform fetches from URL), "
+                        "'webhook' (external systems POST JSON), "
+                        "'sample_json' (user provides sample data to ingest)"
+                    ),
+                },
+                "url": {
+                    "type": "string",
+                    "description": "API URL to fetch from (required for api_pull)",
+                },
+                "method": {
+                    "type": "string",
+                    "enum": ["GET", "POST"],
+                    "description": "HTTP method for api_pull (default: GET)",
+                },
+                "headers": {
+                    "type": "object",
+                    "description": (
+                        'HTTP headers for api_pull '
+                        '(e.g. {"Authorization": "Bearer token"})'
+                    ),
+                },
+                "json_path": {
+                    "type": "string",
+                    "description": (
+                        "Dot-notation path to records array in API response "
+                        "(e.g. 'data.items', 'results')"
+                    ),
+                },
+                "pagination": {
+                    "type": "object",
+                    "description": (
+                        "Pagination config for api_pull. Properties: "
+                        "strategy ('offset'|'cursor'|'link_header'|'next_url'), "
+                        "page_size (default 100), max_pages (default 100, cap 500). "
+                        "For offset: offset_param, limit_param. "
+                        "For cursor: cursor_param, cursor_path. "
+                        "For next_url: next_url_path."
+                    ),
+                },
+                "sample_data": {
+                    "description": (
+                        "Inline sample data for webhook/sample_json — "
+                        "a JSON object or array of objects"
+                    ),
+                },
+                "namespace": {
+                    "type": "string",
+                    "description": "Logical grouping (e.g. 'ecommerce', 'iot')",
+                },
+                "collection": {
+                    "type": "string",
+                    "description": "Collection tag to group related resources",
+                },
+                "primary_key_field": {
+                    "type": "string",
+                    "description": (
+                        "Field name for the silver table primary key "
+                        "(auto-detected if not specified)"
+                    ),
+                },
+                "skip_transform": {
+                    "type": "boolean",
+                    "description": (
+                        "If true, skip creating the silver flattening transform "
+                        "(default: false)"
+                    ),
+                },
+            },
+            "required": ["name", "source_type"],
+        },
+    },
     # ── Transforms ───────────────────────────────────────────────────────────
     {
         "name": "list_transforms",

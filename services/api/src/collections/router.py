@@ -189,6 +189,15 @@ async def export_collection(name: str, request: Request) -> Response:
                 config = _redact_config(config)
             except Exception:
                 pass
+        # Resolve linked entity name for portable cross-tenant import
+        entity_name: str | None = None
+        eid = c.get("target_entity_id")
+        if eid:
+            ent_row = conn.execute(
+                "SELECT name FROM catalogue.entity WHERE id = ?", [str(eid)]
+            ).fetchone()
+            if ent_row:
+                entity_name = str(ent_row[0])
         connectors.append(
             {
                 "name": c["name"],
@@ -197,6 +206,9 @@ async def export_collection(name: str, request: Request) -> Response:
                 "config": config,
                 "tags": _parse_json_field(c.get("tags"), []),
                 "collection": c.get("collection"),
+                "entity_name": entity_name,
+                "cron_schedule": c.get("cron_schedule"),
+                "status": c.get("status", "active"),
             }
         )
 
@@ -343,7 +355,7 @@ async def import_collection(
         except Exception as exc:
             result["errors"].append(f"transform '{name}': {exc}")
 
-    # ── Connectors (never overwrite — secrets were redacted) ─────────────────
+    # ── Connectors ────────────────────────────────────────────────────────────
     for c in data.get("connectors", []):
         name = c.get("name", "")
         try:
@@ -354,8 +366,30 @@ async def import_collection(
             if existing:
                 result["connectors"]["skipped"].append(name)
             else:
+                # Preserve non-secret config values (url, json_path, pagination);
+                # strip redacted placeholders so they don't pollute the new config.
+                imported_config = c.get("config", {})
+                clean_config = {
+                    k: v for k, v in imported_config.items() if v != "***"
+                }
+                # Resolve entity link by name (entities are imported first)
+                entity_id: str | None = None
+                entity_name = c.get("entity_name")
+                if entity_name:
+                    ent = conn.execute(
+                        "SELECT id FROM catalogue.entity"
+                        " WHERE tenant_id = ? AND name = ? AND layer = 'bronze'",
+                        [tenant_id, entity_name],
+                    ).fetchone()
+                    if ent:
+                        entity_id = str(ent[0])
                 create_integration(
-                    {**c, "collection": collection_name, "config": {}},
+                    {
+                        **c,
+                        "collection": collection_name,
+                        "config": clean_config,
+                        "entity_id": entity_id,
+                    },
                     tenant_id,
                 )
                 result["connectors"]["created"].append(name)

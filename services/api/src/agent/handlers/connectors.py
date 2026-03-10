@@ -263,7 +263,13 @@ def handle(
         else:
             source = str(integration["name"])
 
-        result = land_api_pull(url, headers, source, tenant_id, connector_id)
+        json_path: str = config.get("json_path", "")
+        pagination: dict = config.get("pagination") or {}
+
+        result = land_api_pull(
+            url, headers, source, tenant_id, connector_id,
+            json_path=json_path, pagination=pagination,
+        )
         return json.dumps(result, default=str)
 
     return None

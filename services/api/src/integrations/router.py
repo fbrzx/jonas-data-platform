@@ -179,7 +179,12 @@ async def trigger_api_pull(integration_id: str, request: Request) -> dict[str, A
     else:
         source = str(integration["name"])
 
-    result = ingest.land_api_pull(url, headers, source, tenant_id, integration_id)
+    json_path: str = config.get("json_path", "")
+    pagination: dict = config.get("pagination") or {}
+    result = ingest.land_api_pull(
+        url, headers, source, tenant_id, integration_id,
+        json_path=json_path, pagination=pagination,
+    )
     write_audit(
         tenant_id=tenant_id,
         user_id=_user(request).get("user_id"),

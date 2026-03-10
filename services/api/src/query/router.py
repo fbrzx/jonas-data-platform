@@ -16,14 +16,13 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Roles and the DuckDB schemas they may read
-_ROLE_ALLOWED_SCHEMAS: dict[str, set[str]] = {
-    "owner": {
-        "bronze", "silver", "gold",
-        "platform", "catalogue", "transforms", "integrations", "audit",
-    },
-    "admin":    {"bronze", "silver", "gold", "catalogue", "transforms", "integrations", "audit"},
-    "engineer": {"bronze", "silver", "gold", "catalogue", "transforms"},
+# Roles and the tenant-scoped data layers they may query.
+# Only medallion layers (bronze/silver/gold) are exposed — system schemas
+# (platform, catalogue, integrations, etc.) are never queryable.
+_ROLE_ALLOWED_LAYERS: dict[str, set[str]] = {
+    "owner":    {"bronze", "silver", "gold"},
+    "admin":    {"bronze", "silver", "gold"},
+    "engineer": {"bronze", "silver", "gold"},
     "analyst":  {"silver", "gold"},
     "viewer":   {"gold"},
 }
@@ -59,6 +58,12 @@ def _tenant(req: Request) -> str:
     return str(tid)
 
 
+_SYSTEM_SCHEMAS = {
+    "platform", "catalogue", "transforms", "integrations", "audit",
+    "permissions", "information_schema", "pg_catalog", "main",
+}
+
+
 def _validate_query(sql: str, role: str, tenant_id: str) -> str:
     """Return cleaned SQL or raise HTTPException."""
     stripped = sql.strip().rstrip(";")
@@ -74,9 +79,17 @@ def _validate_query(sql: str, role: str, tenant_id: str) -> str:
             detail="Query contains forbidden keywords (DROP, DELETE, UPDATE, etc.).",
         )
 
+    # Block access to system schemas (cross-tenant data)
+    for schema in _SYSTEM_SCHEMAS:
+        if re.search(rf"\b{schema}\b\.", stripped, re.IGNORECASE):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access to '{schema}' schema is not permitted in the query workbench.",
+            )
+
     # Rewrite unqualified layer names to tenant-scoped schemas.
     # e.g. "bronze.orders" → "bronze_acme.orders"
-    allowed = _ROLE_ALLOWED_SCHEMAS.get(role, {"gold"})
+    allowed = _ROLE_ALLOWED_LAYERS.get(role, {"gold"})
     for layer in ("bronze", "silver", "gold"):
         schema = layer_schema(layer, tenant_id)
         if layer in allowed:
@@ -143,9 +156,8 @@ async def list_tables(req: Request) -> list[dict[str, str]]:
     tenant_id = _tenant(req)
     role = str(user.get("role", "viewer"))
 
-    allowed_layers = _ROLE_ALLOWED_SCHEMAS.get(role, {"gold"})
-    data_layers = ("bronze", "silver", "gold")
-    schemas = [layer_schema(layer, tenant_id) for layer in allowed_layers if layer in data_layers]
+    allowed_layers = _ROLE_ALLOWED_LAYERS.get(role, {"gold"})
+    schemas = [layer_schema(layer, tenant_id) for layer in allowed_layers]
 
     conn = get_conn()
     tables: list[dict[str, str]] = []

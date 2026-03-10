@@ -263,7 +263,7 @@ def bootstrap() -> None:
 
 
 def seed_admin_password() -> None:
-    """Set password hashes for all demo users if not yet set.
+    """Set password hash for the platform super user if not yet set.
 
     Uses ADMIN_PASSWORD env var (default 'admin123' for dev).
     Runs on every bootstrap but is a no-op when already set.
@@ -275,18 +275,12 @@ def seed_admin_password() -> None:
     password = os.environ.get("ADMIN_PASSWORD", "admin123")
     conn = get_conn()
     try:
-        demo_users = ["user-admin", "user-analyst", "user-viewer", "user-superuser"]
         h = hash_password(password)
-        for user_id in demo_users:
-            row = conn.execute(
-                "SELECT password_hash FROM platform.user_account WHERE id = ?",
-                [user_id],
-            ).fetchone()
-            if row and not row[0]:
-                conn.execute(
-                    "UPDATE platform.user_account SET password_hash = ? WHERE id = ?",
-                    [h, user_id],
-                )
-        logger.info("demo_passwords_seeded")
+        # Set password for all users that have a NULL password_hash
+        conn.execute(
+            "UPDATE platform.user_account SET password_hash = ? WHERE password_hash IS NULL",
+            [h],
+        )
+        logger.info("passwords_seeded")
     except Exception as exc:
         logger.warning("seed_passwords_failed", error=repr(exc))

@@ -282,22 +282,4 @@ CREATE INDEX IF NOT EXISTS idx_lineage_source
 CREATE INDEX IF NOT EXISTS idx_lineage_target
     ON transforms.entity_lineage (target_entity_id);
 
--- ============================================================
--- SEED: demo tenant + demo users (for local / MotherDuck dev)
--- ============================================================
-
-INSERT INTO platform.tenant (id, slug, name, storage_prefix)
-VALUES ('tenant-acme', 'acme', 'Acme Corp', 'tenants/acme')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO platform.user_account (id, email, display_name) VALUES
-    ('user-admin',   'admin@acme.io',   'Acme Admin'),
-    ('user-analyst', 'analyst@acme.io', 'Acme Analyst'),
-    ('user-viewer',  'viewer@acme.io',  'Acme Viewer')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO platform.tenant_membership (tenant_id, user_id, role) VALUES
-    ('tenant-acme', 'user-admin',   'admin'),
-    ('tenant-acme', 'user-analyst', 'analyst'),
-    ('tenant-acme', 'user-viewer',  'viewer')
-ON CONFLICT DO NOTHING;
+-- No tenants or users seeded — create via API or super user UI.
