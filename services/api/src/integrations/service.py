@@ -46,6 +46,28 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     integration_id = str(uuid.uuid4())
     now = _now()
     raw_config = encrypt_config(json.dumps(data.get("config", {})))
+
+    # Ensure entity link: resolve or auto-create a bronze entity
+    entity_id = data.get("entity_id")
+    if not entity_id:
+        from src.catalogue.service import create_entity
+
+        name = data["name"]
+        # Look up existing bronze entity by name
+        existing = conn.execute(
+            "SELECT id FROM catalogue.entity WHERE tenant_id = ? AND name = ? AND layer = 'bronze'",
+            [tenant_id, name],
+        ).fetchone()
+        if existing:
+            entity_id = str(existing[0])
+        else:
+            entity = create_entity(
+                {"name": name, "layer": "bronze", "description": data.get("description", ""),
+                 "collection": data.get("collection")},
+                tenant_id,
+            )
+            entity_id = str(entity["id"])
+
     conn.execute(
         """
         INSERT INTO integrations.connector
@@ -61,7 +83,7 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
             data["connector_type"],
             raw_config,
             json.dumps(data.get("tags", [])),
-            data.get("entity_id"),
+            entity_id,
             data.get("collection"),
             now,
             now,
