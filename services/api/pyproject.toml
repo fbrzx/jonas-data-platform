@@ -23,6 +23,8 @@ dependencies = [
     "slowapi>=0.1.9",
     "apscheduler>=3.10,<4.0",
     "structlog>=24.4.0",
+    "redis>=5.0",
+    "strawberry-graphql[fastapi]>=0.243.0",
 ]
 
 [project.optional-dependencies]

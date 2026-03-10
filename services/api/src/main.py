@@ -14,11 +14,13 @@ from src.audit.router import router as audit_router
 from src.auth.middleware import AuthMiddleware
 from src.auth.openapi import docs_bearer_auth
 from src.auth.router import router as auth_router
+from src.cache import redis as cache
 from src.catalogue.router import router as catalogue_router
 from src.config import settings
 from src.dashboards.router import router as dashboards_router
 from src.db.connection import close_connection, init_connection
 from src.db.init import bootstrap
+from src.graphql.router import router as graphql_router
 from src.integrations.router import router as integrations_router
 from src.limiter import limiter
 from src.logging_config import configure_logging
@@ -60,10 +62,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("startup", host=settings.api_host, port=settings.api_port)
     await init_connection()
     bootstrap()
+    cache._get_client()  # eagerly connect to Redis (logs warning if unavailable)
     job_scheduler.start(app)
     yield
     logger.info("shutdown")
     job_scheduler.stop()
+    cache.close()
     await close_connection()
 
 
@@ -89,7 +93,7 @@ app.add_middleware(
     allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "PATCH"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Token"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Token", "X-Tenant-ID"],
 )
 
 app.add_middleware(AuthMiddleware)
@@ -164,6 +168,8 @@ app.include_router(
     tags=["superuser"],
     dependencies=[Depends(docs_bearer_auth)],
 )
+# GraphQL endpoint — auth enforced by AuthMiddleware (no separate dependency needed)
+app.include_router(graphql_router, prefix="/api/v1/graphql", tags=["graphql"])
 
 
 @app.get("/health")

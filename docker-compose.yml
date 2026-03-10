@@ -1,4 +1,17 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -32,6 +45,7 @@ services:
       SMTP_PORT: "1025"
       SMTP_FROM: ${SMTP_FROM:-noreply@jonas.local}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+      REDIS_URL: redis://redis:6379
       # Uncomment to use MotherDuck instead of local file:
       # MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:-}
       # ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
@@ -45,6 +59,7 @@ services:
     restart: unless-stopped
     depends_on:
       - mailpit
+      - redis
 
   mailpit:
     image: axllent/mailpit
@@ -54,3 +69,6 @@ services:
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  redis_data:

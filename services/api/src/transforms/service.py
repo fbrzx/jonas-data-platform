@@ -324,10 +324,19 @@ def execute_transform(transform_id: str, tenant_id: str) -> dict[str, Any]:
             tenant_id, target_layer_str, target_name_only, target_table, _get_conn()
         )
 
-    # Fire on_change cascade: notify watchers of the target entity (non-blocking)
+    # Invalidate Redis cache for the target entity so the next GraphQL read
+    # picks up the fresh data immediately.
     if not errors:
         target_name_only = target_table.rsplit(".", 1)[-1]
         target_layer_str = str(transform.get("target_layer", "silver"))
+        try:
+            from src.cache import redis as _cache
+
+            _cache.invalidate(tenant_id, target_layer_str, target_name_only)
+        except Exception:
+            pass  # cache is best-effort; never block the transform result
+
+        # Fire on_change cascade: notify watchers of the target entity (non-blocking)
         from src.transforms.triggers import fire_on_data_changed
 
         fire_on_data_changed(target_name_only, target_layer_str, tenant_id)
