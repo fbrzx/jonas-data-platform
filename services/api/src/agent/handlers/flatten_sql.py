@@ -84,7 +84,7 @@ def generate_flatten_sql(
         if dt in ("int", "float", "bool", "timestamp"):
             ddb_type = _TYPE_MAP[dt]
             select_cols.append(
-                f"    CAST(json_extract(payload, '$.{name}') AS {ddb_type}) AS {name}"
+                f"    TRY_CAST(json_extract(payload, '$.{name}') AS {ddb_type}) AS {name}"
             )
         else:
             select_cols.append(
@@ -93,9 +93,7 @@ def generate_flatten_sql(
 
     insert_stmt = (
         f"INSERT OR REPLACE INTO {silver}.{entity_name}\n"
-        "SELECT\n"
-        + ",\n".join(select_cols)
-        + f"\nFROM {bronze}.{entity_name}\n"
+        "SELECT\n" + ",\n".join(select_cols) + f"\nFROM {bronze}.{entity_name}\n"
         f"WHERE json_extract_string(payload, '$.{pk_field}') IS NOT NULL"
     )
 
