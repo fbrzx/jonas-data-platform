@@ -220,7 +220,7 @@ function TenantUsersDrawer({ tenant, onClose }: { tenant: PlatformTenant; onClos
 export default function SuperUserPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const { toast } = useToast()
+  const { toast, confirm } = useToast()
 
   function enterTenant(tenantId: string) {
     setActiveTenantId(tenantId)
@@ -260,16 +260,14 @@ export default function SuperUserPage() {
     onError: (e: Error) => toast('error', e.message),
   })
 
-  function confirmDeleteTenant(t: PlatformTenant) {
-    if (confirm(`Deactivate tenant "${t.name}" and revoke all ${t.active_members} active memberships?`)) {
-      deleteTenant.mutate(t.id)
-    }
+  async function confirmDeleteTenant(t: PlatformTenant) {
+    const ok = await confirm(`Deactivate tenant "${t.name}" and revoke all ${t.active_members} active memberships?`)
+    if (ok) deleteTenant.mutate(t.id)
   }
 
-  function confirmRevokeSU(u: PlatformSuperUser) {
-    if (confirm(`Remove super user privileges from ${u.email}?`)) {
-      revokeSU.mutate(u.id)
-    }
+  async function confirmRevokeSU(u: PlatformSuperUser) {
+    const ok = await confirm(`Remove super user privileges from ${u.email}?`)
+    if (ok) revokeSU.mutate(u.id)
   }
 
   return (

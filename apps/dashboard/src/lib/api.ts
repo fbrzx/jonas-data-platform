@@ -398,7 +398,7 @@ let _refreshing: Promise<void> | null = null
 
 async function _tryRefresh(): Promise<void> {
   const refresh = getRefreshToken()
-  if (!refresh) { clearTokens(); return }
+  if (!refresh) { return }  // no refresh token — leave access token intact, let request fail naturally
   try {
     const res = await fetch(`${API_BASE_PATH}/auth/refresh`, {
       method: 'POST',

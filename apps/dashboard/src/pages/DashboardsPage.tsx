@@ -3,6 +3,7 @@ import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/rea
 import * as Plot from '@observablehq/plot'
 import * as Inputs from '@observablehq/inputs'
 import { api, type Dashboard, type DashboardDetail } from '../lib/api'
+import { useToast } from '../lib/toast'
 
 type PanelMode = 'edit' | 'preview'
 type Selection = { kind: 'dashboard'; slug: string } | { kind: 'config' }
@@ -496,6 +497,7 @@ function EditorPanel({
   saving: boolean
   onDelete: () => void
 }) {
+  const { confirm } = useToast()
   const gutterRef = useRef<HTMLDivElement>(null)
   const [content, setContent] = useState(detail.content)
   const [dirty, setDirty] = useState(false)
@@ -565,7 +567,7 @@ function EditorPanel({
             obs ↗
           </a>
           <button
-            onClick={() => { if (confirm(`Delete "${detail.title}"?`)) onDelete() }}
+            onClick={async () => { if (await confirm(`Delete "${detail.title}"?`)) onDelete() }}
             className="font-mono text-[10px] text-j-dim hover:text-j-red transition-colors px-2 py-1"
           >
             delete

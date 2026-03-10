@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { api, type Transform, type ExecuteResult, type TransformCreate, type TransformUpdate } from '../lib/api'
 import { usePermissions } from '../lib/permissions'
+import { useToast } from '../lib/toast'
 import PageHeader from '../components/PageHeader'
 import CollectionTag from '../components/CollectionTag'
 
@@ -255,6 +256,7 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
   const [execResult, setExecResult] = useState<ExecuteResult | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const qc = useQueryClient()
+  const { confirm } = useToast()
 
   const isDraft = transform.status === 'draft'
   const canEdit = canWrite && (canAdmin || isDraft)
@@ -320,7 +322,8 @@ function TransformCard({ transform, canApprove, canWrite, canAdmin }: { transfor
               )}
               {canAdmin && (
                 <button disabled={busy} onClick={async () => {
-                  if (!confirm(`Delete transform "${transform.name}"?`)) return
+                  const ok = await confirm(`Delete transform "${transform.name}"?`)
+                  if (!ok) return
                   deleteMut.mutate()
                 }}
                   className="px-2.5 py-1 font-mono text-[10px] tracking-[0.1em] uppercase rounded border border-j-red/40 text-j-red/60 hover:border-j-red hover:text-j-red disabled:opacity-30 transition-colors">

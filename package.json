@@ -6,10 +6,15 @@
     "dev": "pnpm --filter ./apps/dashboard dev",
     "build": "pnpm --filter ./apps/dashboard build",
     "lint": "pnpm --filter ./apps/dashboard lint",
-    "install:all": "pnpm install"
+    "install:all": "pnpm install",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

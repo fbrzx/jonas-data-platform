@@ -50,7 +50,15 @@ async def list_tenants(request: Request) -> list[dict[str, Any]]:
         ORDER BY t.created_at ASC
         """
     ).fetchall()
-    cols = ["id", "slug", "name", "storage_prefix", "created_at", "active_members", "total_members"]
+    cols = [
+        "id",
+        "slug",
+        "name",
+        "storage_prefix",
+        "created_at",
+        "active_members",
+        "total_members",
+    ]
     return [dict(zip(cols, r)) for r in rows]
 
 
@@ -67,6 +75,7 @@ async def create_tenant(request: Request, body: TenantCreate) -> dict[str, Any]:
 
     # Validate slug (alphanumeric + hyphens)
     import re
+
     if not re.match(r"^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$", body.slug):
         raise HTTPException(
             status_code=422,
@@ -78,7 +87,9 @@ async def create_tenant(request: Request, body: TenantCreate) -> dict[str, Any]:
         "SELECT id FROM platform.tenant WHERE slug = ?", [body.slug]
     ).fetchone()
     if existing:
-        raise HTTPException(status_code=409, detail="A tenant with this slug already exists")
+        raise HTTPException(
+            status_code=409, detail="A tenant with this slug already exists"
+        )
 
     now = datetime.now(UTC).isoformat()
     tenant_id = conn.execute("SELECT gen_random_uuid()").fetchone()[0]  # type: ignore[index]
@@ -93,9 +104,11 @@ async def create_tenant(request: Request, body: TenantCreate) -> dict[str, Any]:
     # Provision bronze/silver/gold schemas for this tenant
     try:
         from src.db.tenant_schemas import provision_tenant_schemas
+
         provision_tenant_schemas(tenant_id)
     except Exception as exc:
         import structlog
+
         structlog.get_logger(__name__).warning(
             "schema_provisioning_failed", tenant_id=tenant_id, error=repr(exc)
         )
@@ -168,11 +181,7 @@ async def update_tenant(
 
 @router.delete("/tenants/{tenant_id}", status_code=204)
 async def delete_tenant(request: Request, tenant_id: str) -> None:
-    """Revoke all members and mark a tenant as deleted.
-
-    This is a soft operation: the tenant row is retained for audit purposes
-    but all memberships are revoked, preventing any further access.
-    """
+    """Delete a tenant and all its memberships permanently."""
     su = _superuser(request)
     conn = get_conn()
 
@@ -182,14 +191,6 @@ async def delete_tenant(request: Request, tenant_id: str) -> None:
     if not row:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    now = datetime.now(UTC).isoformat()
-    # Revoke all active memberships
-    conn.execute(
-        "UPDATE platform.tenant_membership SET revoked_at = ? "
-        "WHERE tenant_id = ? AND revoked_at IS NULL",
-        [now, tenant_id],
-    )
-
     write_audit(
         tenant_id=tenant_id,
         user_id=su.get("user_id"),
@@ -197,6 +198,12 @@ async def delete_tenant(request: Request, tenant_id: str) -> None:
         resource_type="tenant",
         resource_id=tenant_id,
     )
+
+    # Delete memberships first, then the tenant row
+    conn.execute(
+        "DELETE FROM platform.tenant_membership WHERE tenant_id = ?", [tenant_id]
+    )
+    conn.execute("DELETE FROM platform.tenant WHERE id = ?", [tenant_id])
 
 
 # ── Tenant member inspection ───────────────────────────────────────────────────
@@ -306,7 +313,9 @@ async def revoke_superuser(request: Request, user_id: str) -> None:
     requester_id = su.get("user_id")
 
     if user_id == requester_id:
-        raise HTTPException(status_code=400, detail="Cannot remove your own super user privileges")
+        raise HTTPException(
+            status_code=400, detail="Cannot remove your own super user privileges"
+        )
 
     conn = get_conn()
     row = conn.execute(

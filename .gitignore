@@ -78,3 +78,4 @@ Thumbs.db
 # Runtime data (DuckDB file + parquet — never commit)
 data/
 sample_data/
+test-results/

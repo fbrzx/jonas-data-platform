@@ -1,0 +1,2392 @@
+{
+  "collection": "Star Wars",
+  "exported_at": "2026-03-10T06:55:12.613429+00:00",
+  "entities": [
+    {
+      "name": "people",
+      "description": "",
+      "layer": "bronze",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": [
+            "Luke Skywalker",
+            "C-3PO",
+            "R2-D2"
+          ]
+        },
+        {
+          "name": "height",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 1,
+          "sample_values": [
+            "172",
+            "167",
+            "96"
+          ]
+        },
+        {
+          "name": "mass",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 2,
+          "sample_values": [
+            "77",
+            "75",
+            "32"
+          ]
+        },
+        {
+          "name": "hair_color",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 3,
+          "sample_values": [
+            "blond",
+            "n/a",
+            "n/a"
+          ]
+        },
+        {
+          "name": "skin_color",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 4,
+          "sample_values": [
+            "fair",
+            "gold",
+            "white, blue"
+          ]
+        },
+        {
+          "name": "eye_color",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 5,
+          "sample_values": [
+            "blue",
+            "yellow",
+            "red"
+          ]
+        },
+        {
+          "name": "birth_year",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 6,
+          "sample_values": [
+            "19BBY",
+            "112BBY",
+            "33BBY"
+          ]
+        },
+        {
+          "name": "gender",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 7,
+          "sample_values": [
+            "male",
+            "n/a",
+            "n/a"
+          ]
+        },
+        {
+          "name": "homeworld",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 8,
+          "sample_values": [
+            "https://swapi.dev/api/planets/1/",
+            "https://swapi.dev/api/planets/1/",
+            "https://swapi.dev/api/planets/8/"
+          ]
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 9,
+          "sample_values": [
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw",
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw",
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw"
+          ]
+        },
+        {
+          "name": "species",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 10,
+          "sample_values": [
+            "[]",
+            "['https://swapi.dev/api/species/2/']",
+            "['https://swapi.dev/api/species/2/']"
+          ]
+        },
+        {
+          "name": "vehicles",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 11,
+          "sample_values": [
+            "['https://swapi.dev/api/vehicles/14/', 'https://swapi.dev/api/vehicles/30/']",
+            "[]",
+            "[]"
+          ]
+        },
+        {
+          "name": "starships",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 12,
+          "sample_values": [
+            "['https://swapi.dev/api/starships/12/', 'https://swapi.dev/api/starships/22/']",
+            "[]",
+            "[]"
+          ]
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 13,
+          "sample_values": [
+            "2014-12-09T13:50:51.644000Z",
+            "2014-12-10T15:10:51.357000Z",
+            "2014-12-10T15:11:50.376000Z"
+          ]
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 14,
+          "sample_values": [
+            "2014-12-20T21:17:56.891000Z",
+            "2014-12-20T21:17:50.309000Z",
+            "2014-12-20T21:17:50.311000Z"
+          ]
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 15,
+          "sample_values": [
+            "https://swapi.dev/api/people/1/",
+            "https://swapi.dev/api/people/2/",
+            "https://swapi.dev/api/people/3/"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "people",
+      "description": "Cleaned/typed version of bronze.people",
+      "layer": "silver",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "height",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "mass",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "hair_color",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "skin_color",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "eye_color",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "birth_year",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "gender",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "homeworld",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "species",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "vehicles",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "starships",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        }
+      ]
+    },
+    {
+      "name": "planets",
+      "description": "",
+      "layer": "bronze",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": [
+            "Tatooine",
+            "Alderaan",
+            "Yavin IV"
+          ]
+        },
+        {
+          "name": "rotation_period",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 1,
+          "sample_values": [
+            "23",
+            "24",
+            "24"
+          ]
+        },
+        {
+          "name": "orbital_period",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 2,
+          "sample_values": [
+            "304",
+            "364",
+            "4818"
+          ]
+        },
+        {
+          "name": "diameter",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 3,
+          "sample_values": [
+            "10465",
+            "12500",
+            "10200"
+          ]
+        },
+        {
+          "name": "climate",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 4,
+          "sample_values": [
+            "arid",
+            "temperate",
+            "temperate, tropical"
+          ]
+        },
+        {
+          "name": "gravity",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 5,
+          "sample_values": [
+            "1 standard",
+            "1 standard",
+            "1 standard"
+          ]
+        },
+        {
+          "name": "terrain",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 6,
+          "sample_values": [
+            "desert",
+            "grasslands, mountains",
+            "jungle, rainforests"
+          ]
+        },
+        {
+          "name": "surface_water",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 7,
+          "sample_values": [
+            "1",
+            "40",
+            "8"
+          ]
+        },
+        {
+          "name": "population",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 8,
+          "sample_values": [
+            "200000",
+            "2000000000",
+            "1000"
+          ]
+        },
+        {
+          "name": "residents",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 9,
+          "sample_values": [
+            "['https://swapi.dev/api/people/1/', 'https://swapi.dev/api/people/2/', 'https://",
+            "['https://swapi.dev/api/people/5/', 'https://swapi.dev/api/people/68/', 'https:/",
+            "[]"
+          ]
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 10,
+          "sample_values": [
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/3/', 'https://sw",
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/6/']",
+            "['https://swapi.dev/api/films/1/']"
+          ]
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 11,
+          "sample_values": [
+            "2014-12-09T13:50:49.641000Z",
+            "2014-12-10T11:35:48.479000Z",
+            "2014-12-10T11:37:19.144000Z"
+          ]
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 12,
+          "sample_values": [
+            "2014-12-20T20:58:18.411000Z",
+            "2014-12-20T20:58:18.420000Z",
+            "2014-12-20T20:58:18.421000Z"
+          ]
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 13,
+          "sample_values": [
+            "https://swapi.dev/api/planets/1/",
+            "https://swapi.dev/api/planets/2/",
+            "https://swapi.dev/api/planets/3/"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "planets",
+      "description": "Cleaned/typed version of bronze.planets",
+      "layer": "silver",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "rotation_period",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "orbital_period",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "diameter",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "climate",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "gravity",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "terrain",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "surface_water",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "population",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "residents",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        }
+      ]
+    },
+    {
+      "name": "starships",
+      "description": "",
+      "layer": "bronze",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": [
+            "CR90 corvette",
+            "Star Destroyer",
+            "Sentinel-class landing craft"
+          ]
+        },
+        {
+          "name": "model",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 1,
+          "sample_values": [
+            "CR90 corvette",
+            "Imperial I-class Star Destroyer",
+            "Sentinel-class landing craft"
+          ]
+        },
+        {
+          "name": "manufacturer",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 2,
+          "sample_values": [
+            "Corellian Engineering Corporation",
+            "Kuat Drive Yards",
+            "Sienar Fleet Systems, Cyngus Spaceworks"
+          ]
+        },
+        {
+          "name": "cost_in_credits",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 3,
+          "sample_values": [
+            "3500000",
+            "150000000",
+            "240000"
+          ]
+        },
+        {
+          "name": "length",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 4,
+          "sample_values": [
+            "150",
+            "1,600",
+            "38"
+          ]
+        },
+        {
+          "name": "max_atmosphering_speed",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 5,
+          "sample_values": [
+            "950",
+            "975",
+            "1000"
+          ]
+        },
+        {
+          "name": "crew",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 6,
+          "sample_values": [
+            "30-165",
+            "47,060",
+            "5"
+          ]
+        },
+        {
+          "name": "passengers",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 7,
+          "sample_values": [
+            "600",
+            "n/a",
+            "75"
+          ]
+        },
+        {
+          "name": "cargo_capacity",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 8,
+          "sample_values": [
+            "3000000",
+            "36000000",
+            "180000"
+          ]
+        },
+        {
+          "name": "consumables",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 9,
+          "sample_values": [
+            "1 year",
+            "2 years",
+            "1 month"
+          ]
+        },
+        {
+          "name": "hyperdrive_rating",
+          "data_type": "float",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 10,
+          "sample_values": [
+            "2.0",
+            "2.0",
+            "1.0"
+          ]
+        },
+        {
+          "name": "MGLT",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 11,
+          "sample_values": [
+            "60",
+            "60",
+            "70"
+          ]
+        },
+        {
+          "name": "starship_class",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 12,
+          "sample_values": [
+            "corvette",
+            "Star Destroyer",
+            "landing craft"
+          ]
+        },
+        {
+          "name": "pilots",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 13,
+          "sample_values": [
+            "[]",
+            "[]",
+            "[]"
+          ]
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 14,
+          "sample_values": [
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/3/', 'https://sw",
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw",
+            "['https://swapi.dev/api/films/1/']"
+          ]
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 15,
+          "sample_values": [
+            "2014-12-10T14:20:33.369000Z",
+            "2014-12-10T15:08:19.848000Z",
+            "2014-12-10T15:48:00.586000Z"
+          ]
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 16,
+          "sample_values": [
+            "2014-12-20T21:23:49.867000Z",
+            "2014-12-20T21:23:49.870000Z",
+            "2014-12-20T21:23:49.873000Z"
+          ]
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 17,
+          "sample_values": [
+            "https://swapi.dev/api/starships/2/",
+            "https://swapi.dev/api/starships/3/",
+            "https://swapi.dev/api/starships/5/"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "starships",
+      "description": "Cleaned/typed version of bronze.starships",
+      "layer": "silver",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "model",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "manufacturer",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "cost_in_credits",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "length",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "max_atmosphering_speed",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "crew",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "passengers",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "cargo_capacity",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "consumables",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "hyperdrive_rating",
+          "data_type": "float",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "MGLT",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "starship_class",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "pilots",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        }
+      ]
+    },
+    {
+      "name": "films",
+      "description": "",
+      "layer": "bronze",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "title",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": [
+            "A New Hope",
+            "The Empire Strikes Back",
+            "Return of the Jedi"
+          ]
+        },
+        {
+          "name": "episode_id",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 1,
+          "sample_values": [
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "name": "opening_crawl",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 2,
+          "sample_values": [
+            "It is a period of civil war.\r\nRebel spaceships, striking\r\nfrom a hidden base, have won\r\ntheir first victory against\r\nthe evil Galactic Empire.\r\n\r\nDuring the battle, Rebel\r\nspies managed to steal secret\r\nplans to the Empire's\r\nultimate weapon, the DEATH\r\nSTAR, an armored space\r\nstation with enough power\r\nto destroy an entire planet.\r\n\r\nPursued by the Empire's\r\nsinister agents, Princess\r\nLeia races home aboard her\r\nstarship, custodian of the\r\nstolen plans that can save her\r\npeople and restore\r\nfreedom to the galaxy....",
+            "It is a dark time for the\r\nRebellion. Although the Death\r\nStar has been destroyed,\r\nImperial troops have driven the\r\nRebel forces from their hidden\r\nbase and pursued them across\r\nthe galaxy.\r\n\r\nEvading the dreaded Imperial\r\nStarfleet, a group of freedom\r\nfighters led by Luke Skywalker\r\nhas established a new secret\r\nbase on the remote ice world\r\nof Hoth.\r\n\r\nThe evil lord Darth Vader,\r\nobsessed with finding young\r\nSkywalker, has dispatched\r\nthousands of remote probes into\r\nthe far reaches of space....",
+            "Luke Skywalker has returned to\r\nhis home planet of Tatooine in\r\nan attempt to rescue his\r\nfriend Han Solo from the\r\nclutches of the vile gangster\r\nJabba the Hutt.\r\n\r\nLittle does Luke know that the\r\nGALACTIC EMPIRE has secretly\r\nbegun construction on a new\r\narmored space station even\r\nmore powerful than the first\r\ndreaded Death Star.\r\n\r\nWhen completed, this ultimate\r\nweapon will spell certain doom\r\nfor the small band of rebels\r\nstruggling to restore freedom\r\nto the galaxy..."
+          ]
+        },
+        {
+          "name": "director",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 3,
+          "sample_values": [
+            "George Lucas",
+            "Irvin Kershner",
+            "Richard Marquand"
+          ]
+        },
+        {
+          "name": "producer",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 4,
+          "sample_values": [
+            "Gary Kurtz, Rick McCallum",
+            "Gary Kurtz, Rick McCallum",
+            "Howard G. Kazanjian, George Lucas, Rick McCallum"
+          ]
+        },
+        {
+          "name": "release_date",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 5,
+          "sample_values": [
+            "1977-05-25",
+            "1980-05-17",
+            "1983-05-25"
+          ]
+        },
+        {
+          "name": "characters",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 6,
+          "sample_values": [
+            "['https://swapi.dev/api/people/1/', 'https://swapi.dev/api/people/2/', 'https://",
+            "['https://swapi.dev/api/people/1/', 'https://swapi.dev/api/people/2/', 'https://",
+            "['https://swapi.dev/api/people/1/', 'https://swapi.dev/api/people/2/', 'https://"
+          ]
+        },
+        {
+          "name": "planets",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 7,
+          "sample_values": [
+            "['https://swapi.dev/api/planets/1/', 'https://swapi.dev/api/planets/2/', 'https:",
+            "['https://swapi.dev/api/planets/4/', 'https://swapi.dev/api/planets/5/', 'https:",
+            "['https://swapi.dev/api/planets/1/', 'https://swapi.dev/api/planets/5/', 'https:"
+          ]
+        },
+        {
+          "name": "starships",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 8,
+          "sample_values": [
+            "['https://swapi.dev/api/starships/2/', 'https://swapi.dev/api/starships/3/', 'ht",
+            "['https://swapi.dev/api/starships/3/', 'https://swapi.dev/api/starships/10/', 'h",
+            "['https://swapi.dev/api/starships/2/', 'https://swapi.dev/api/starships/3/', 'ht"
+          ]
+        },
+        {
+          "name": "vehicles",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 9,
+          "sample_values": [
+            "['https://swapi.dev/api/vehicles/4/', 'https://swapi.dev/api/vehicles/6/', 'http",
+            "['https://swapi.dev/api/vehicles/8/', 'https://swapi.dev/api/vehicles/14/', 'htt",
+            "['https://swapi.dev/api/vehicles/8/', 'https://swapi.dev/api/vehicles/16/', 'htt"
+          ]
+        },
+        {
+          "name": "species",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 10,
+          "sample_values": [
+            "['https://swapi.dev/api/species/1/', 'https://swapi.dev/api/species/2/', 'https:",
+            "['https://swapi.dev/api/species/1/', 'https://swapi.dev/api/species/2/', 'https:",
+            "['https://swapi.dev/api/species/1/', 'https://swapi.dev/api/species/2/', 'https:"
+          ]
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 11,
+          "sample_values": [
+            "2014-12-10T14:23:31.880000Z",
+            "2014-12-12T11:26:24.656000Z",
+            "2014-12-18T10:39:33.255000Z"
+          ]
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 12,
+          "sample_values": [
+            "2014-12-20T19:49:45.256000Z",
+            "2014-12-15T13:07:53.386000Z",
+            "2014-12-20T09:48:37.462000Z"
+          ]
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 13,
+          "sample_values": [
+            "https://swapi.dev/api/films/1/",
+            "https://swapi.dev/api/films/2/",
+            "https://swapi.dev/api/films/3/"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "films",
+      "description": "Cleaned/typed version of bronze.films",
+      "layer": "silver",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "title",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "episode_id",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "opening_crawl",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "director",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "producer",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "release_date",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "characters",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "planets",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "starships",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "vehicles",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "species",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        }
+      ]
+    },
+    {
+      "name": "species",
+      "description": "Cleaned/typed version of bronze.species",
+      "layer": "silver",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "classification",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "designation",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "average_height",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "skin_colors",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "hair_colors",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "eye_colors",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "average_lifespan",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "homeworld",
+          "data_type": "string",
+          "nullable": true,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "language",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "people",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        }
+      ]
+    },
+    {
+      "name": "vehicles",
+      "description": "Cleaned/typed version of bronze.vehicles",
+      "layer": "silver",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "model",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "manufacturer",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "cost_in_credits",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "length",
+          "data_type": "float",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "max_atmosphering_speed",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "crew",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "passengers",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "cargo_capacity",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "consumables",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "vehicle_class",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "pilots",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": []
+        }
+      ]
+    },
+    {
+      "name": "species",
+      "description": "",
+      "layer": "bronze",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": [
+            "Human",
+            "Droid",
+            "Wookie"
+          ]
+        },
+        {
+          "name": "classification",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 1,
+          "sample_values": [
+            "mammal",
+            "artificial",
+            "mammal"
+          ]
+        },
+        {
+          "name": "designation",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 2,
+          "sample_values": [
+            "sentient",
+            "sentient",
+            "sentient"
+          ]
+        },
+        {
+          "name": "average_height",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 3,
+          "sample_values": [
+            "180",
+            "n/a",
+            "210"
+          ]
+        },
+        {
+          "name": "skin_colors",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 4,
+          "sample_values": [
+            "caucasian, black, asian, hispanic",
+            "n/a",
+            "gray"
+          ]
+        },
+        {
+          "name": "hair_colors",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 5,
+          "sample_values": [
+            "blonde, brown, black, red",
+            "n/a",
+            "black, brown"
+          ]
+        },
+        {
+          "name": "eye_colors",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 6,
+          "sample_values": [
+            "brown, blue, green, hazel, grey, amber",
+            "n/a",
+            "blue, green, yellow, brown, golden, red"
+          ]
+        },
+        {
+          "name": "average_lifespan",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 7,
+          "sample_values": [
+            "120",
+            "indefinite",
+            "400"
+          ]
+        },
+        {
+          "name": "homeworld",
+          "data_type": "string",
+          "nullable": true,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 8,
+          "sample_values": [
+            "https://swapi.dev/api/planets/9/",
+            "https://swapi.dev/api/planets/14/",
+            "https://swapi.dev/api/planets/23/"
+          ]
+        },
+        {
+          "name": "language",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 9,
+          "sample_values": [
+            "Galactic Basic",
+            "n/a",
+            "Shyriiwook"
+          ]
+        },
+        {
+          "name": "people",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 10,
+          "sample_values": [
+            "['https://swapi.dev/api/people/66/', 'https://swapi.dev/api/people/67/', 'https:",
+            "['https://swapi.dev/api/people/2/', 'https://swapi.dev/api/people/3/', 'https://",
+            "['https://swapi.dev/api/people/13/', 'https://swapi.dev/api/people/80/']"
+          ]
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 11,
+          "sample_values": [
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw",
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw",
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/2/', 'https://sw"
+          ]
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 12,
+          "sample_values": [
+            "2014-12-10T13:52:11.567000Z",
+            "2014-12-10T15:16:16.259000Z",
+            "2014-12-10T16:44:31.486000Z"
+          ]
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 13,
+          "sample_values": [
+            "2014-12-20T21:36:42.136000Z",
+            "2014-12-20T21:36:42.139000Z",
+            "2014-12-20T21:36:42.142000Z"
+          ]
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 14,
+          "sample_values": [
+            "https://swapi.dev/api/species/1/",
+            "https://swapi.dev/api/species/2/",
+            "https://swapi.dev/api/species/3/"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vehicles",
+      "description": "",
+      "layer": "bronze",
+      "tags": [
+        "starwars"
+      ],
+      "metadata": {},
+      "collection": "Star Wars",
+      "fields": [
+        {
+          "name": "name",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 0,
+          "sample_values": [
+            "Sand Crawler",
+            "T-16 skyhopper",
+            "X-34 landspeeder"
+          ]
+        },
+        {
+          "name": "model",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 1,
+          "sample_values": [
+            "Digger Crawler",
+            "T-16 skyhopper",
+            "X-34 landspeeder"
+          ]
+        },
+        {
+          "name": "manufacturer",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 2,
+          "sample_values": [
+            "Corellia Mining Corporation",
+            "Incom Corporation",
+            "SoroSuub Corporation"
+          ]
+        },
+        {
+          "name": "cost_in_credits",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 3,
+          "sample_values": [
+            "150000",
+            "14500",
+            "10550"
+          ]
+        },
+        {
+          "name": "length",
+          "data_type": "float",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 4,
+          "sample_values": [
+            "36.8 ",
+            "10.4 ",
+            "3.4 "
+          ]
+        },
+        {
+          "name": "max_atmosphering_speed",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 5,
+          "sample_values": [
+            "30",
+            "1200",
+            "250"
+          ]
+        },
+        {
+          "name": "crew",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 6,
+          "sample_values": [
+            "46",
+            "1",
+            "1"
+          ]
+        },
+        {
+          "name": "passengers",
+          "data_type": "int",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 7,
+          "sample_values": [
+            "30",
+            "1",
+            "1"
+          ]
+        },
+        {
+          "name": "cargo_capacity",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 8,
+          "sample_values": [
+            "50000",
+            "50",
+            "5"
+          ]
+        },
+        {
+          "name": "consumables",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 9,
+          "sample_values": [
+            "2 months",
+            "0",
+            "unknown"
+          ]
+        },
+        {
+          "name": "vehicle_class",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 10,
+          "sample_values": [
+            "wheeled",
+            "repulsorcraft",
+            "repulsorcraft"
+          ]
+        },
+        {
+          "name": "pilots",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 11,
+          "sample_values": [
+            "[]",
+            "[]",
+            "[]"
+          ]
+        },
+        {
+          "name": "films",
+          "data_type": "array",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 12,
+          "sample_values": [
+            "['https://swapi.dev/api/films/1/', 'https://swapi.dev/api/films/5/']",
+            "['https://swapi.dev/api/films/1/']",
+            "['https://swapi.dev/api/films/1/']"
+          ]
+        },
+        {
+          "name": "created",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 13,
+          "sample_values": [
+            "2014-12-10T15:36:25.724000Z",
+            "2014-12-10T16:01:52.434000Z",
+            "2014-12-10T16:13:52.586000Z"
+          ]
+        },
+        {
+          "name": "edited",
+          "data_type": "timestamp",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 14,
+          "sample_values": [
+            "2014-12-20T21:30:21.661000Z",
+            "2014-12-20T21:30:21.665000Z",
+            "2014-12-20T21:30:21.668000Z"
+          ]
+        },
+        {
+          "name": "url",
+          "data_type": "string",
+          "nullable": false,
+          "is_pii": false,
+          "description": "",
+          "ordinal": 15,
+          "sample_values": [
+            "https://swapi.dev/api/vehicles/4/",
+            "https://swapi.dev/api/vehicles/6/",
+            "https://swapi.dev/api/vehicles/7/"
+          ]
+        }
+      ]
+    }
+  ],
+  "transforms": [
+    {
+      "name": "flatten_people",
+      "description": "Auto-flatten bronze.people \u2192 silver.people",
+      "source_layer": "bronze",
+      "target_layer": "silver",
+      "sql": "CREATE TABLE IF NOT EXISTS silver.people (\n    name VARCHAR,\n    height BIGINT,\n    mass BIGINT,\n    hair_color VARCHAR,\n    skin_color VARCHAR,\n    eye_color VARCHAR,\n    birth_year VARCHAR,\n    gender VARCHAR,\n    homeworld VARCHAR,\n    films JSON,\n    species JSON,\n    vehicles JSON,\n    starships JSON,\n    created TIMESTAMP,\n    edited TIMESTAMP,\n    url VARCHAR PRIMARY KEY\n);\n\nINSERT OR REPLACE INTO silver.people\nSELECT\n    json_extract_string(payload, '$.name') AS name,\n    TRY_CAST(json_extract(payload, '$.height') AS BIGINT) AS height,\n    TRY_CAST(json_extract(payload, '$.mass') AS BIGINT) AS mass,\n    json_extract_string(payload, '$.hair_color') AS hair_color,\n    json_extract_string(payload, '$.skin_color') AS skin_color,\n    json_extract_string(payload, '$.eye_color') AS eye_color,\n    json_extract_string(payload, '$.birth_year') AS birth_year,\n    json_extract_string(payload, '$.gender') AS gender,\n    json_extract_string(payload, '$.homeworld') AS homeworld,\n    json_extract_string(payload, '$.films') AS films,\n    json_extract_string(payload, '$.species') AS species,\n    json_extract_string(payload, '$.vehicles') AS vehicles,\n    json_extract_string(payload, '$.starships') AS starships,\n    TRY_CAST(json_extract(payload, '$.created') AS TIMESTAMP) AS created,\n    TRY_CAST(json_extract(payload, '$.edited') AS TIMESTAMP) AS edited,\n    json_extract_string(payload, '$.url') AS url\nFROM bronze.people\nWHERE json_extract_string(payload, '$.url') IS NOT NULL;",
+      "tags": [],
+      "trigger_mode": "on_change",
+      "watch_entities": [
+        "200471f3-95e6-4699-9a28-a314984d08c3"
+      ],
+      "collection": "Star Wars"
+    },
+    {
+      "name": "flatten_planets",
+      "description": "Auto-flatten bronze.planets \u2192 silver.planets",
+      "source_layer": "bronze",
+      "target_layer": "silver",
+      "sql": "CREATE TABLE IF NOT EXISTS silver.planets (\n    name VARCHAR,\n    rotation_period BIGINT,\n    orbital_period BIGINT,\n    diameter BIGINT,\n    climate VARCHAR,\n    gravity VARCHAR,\n    terrain VARCHAR,\n    surface_water VARCHAR,\n    population VARCHAR,\n    residents JSON,\n    films JSON,\n    created TIMESTAMP,\n    edited TIMESTAMP,\n    url VARCHAR PRIMARY KEY\n);\n\nINSERT OR REPLACE INTO silver.planets\nSELECT\n    json_extract_string(payload, '$.name') AS name,\n    TRY_CAST(json_extract(payload, '$.rotation_period') AS BIGINT) AS rotation_period,\n    TRY_CAST(json_extract(payload, '$.orbital_period') AS BIGINT) AS orbital_period,\n    TRY_CAST(json_extract(payload, '$.diameter') AS BIGINT) AS diameter,\n    json_extract_string(payload, '$.climate') AS climate,\n    json_extract_string(payload, '$.gravity') AS gravity,\n    json_extract_string(payload, '$.terrain') AS terrain,\n    json_extract_string(payload, '$.surface_water') AS surface_water,\n    json_extract_string(payload, '$.population') AS population,\n    json_extract_string(payload, '$.residents') AS residents,\n    json_extract_string(payload, '$.films') AS films,\n    TRY_CAST(json_extract(payload, '$.created') AS TIMESTAMP) AS created,\n    TRY_CAST(json_extract(payload, '$.edited') AS TIMESTAMP) AS edited,\n    json_extract_string(payload, '$.url') AS url\nFROM bronze.planets\nWHERE json_extract_string(payload, '$.url') IS NOT NULL;",
+      "tags": [],
+      "trigger_mode": "on_change",
+      "watch_entities": [
+        "ad733e22-e0ff-441a-83be-b5c332b39615"
+      ],
+      "collection": "Star Wars"
+    },
+    {
+      "name": "flatten_starships",
+      "description": "Auto-flatten bronze.starships \u2192 silver.starships",
+      "source_layer": "bronze",
+      "target_layer": "silver",
+      "sql": "CREATE TABLE IF NOT EXISTS silver.starships (\n    name VARCHAR,\n    model VARCHAR,\n    manufacturer VARCHAR,\n    cost_in_credits VARCHAR,\n    length VARCHAR,\n    max_atmosphering_speed VARCHAR,\n    crew VARCHAR,\n    passengers VARCHAR,\n    cargo_capacity BIGINT,\n    consumables VARCHAR,\n    hyperdrive_rating DOUBLE,\n    MGLT BIGINT,\n    starship_class VARCHAR,\n    pilots JSON,\n    films JSON,\n    created TIMESTAMP,\n    edited TIMESTAMP,\n    url VARCHAR PRIMARY KEY\n);\n\nINSERT OR REPLACE INTO silver.starships\nSELECT\n    json_extract_string(payload, '$.name') AS name,\n    json_extract_string(payload, '$.model') AS model,\n    json_extract_string(payload, '$.manufacturer') AS manufacturer,\n    json_extract_string(payload, '$.cost_in_credits') AS cost_in_credits,\n    json_extract_string(payload, '$.length') AS length,\n    json_extract_string(payload, '$.max_atmosphering_speed') AS max_atmosphering_speed,\n    json_extract_string(payload, '$.crew') AS crew,\n    json_extract_string(payload, '$.passengers') AS passengers,\n    TRY_CAST(json_extract(payload, '$.cargo_capacity') AS BIGINT) AS cargo_capacity,\n    json_extract_string(payload, '$.consumables') AS consumables,\n    TRY_CAST(json_extract(payload, '$.hyperdrive_rating') AS DOUBLE) AS hyperdrive_rating,\n    TRY_CAST(json_extract(payload, '$.MGLT') AS BIGINT) AS MGLT,\n    json_extract_string(payload, '$.starship_class') AS starship_class,\n    json_extract_string(payload, '$.pilots') AS pilots,\n    json_extract_string(payload, '$.films') AS films,\n    TRY_CAST(json_extract(payload, '$.created') AS TIMESTAMP) AS created,\n    TRY_CAST(json_extract(payload, '$.edited') AS TIMESTAMP) AS edited,\n    json_extract_string(payload, '$.url') AS url\nFROM bronze.starships\nWHERE json_extract_string(payload, '$.url') IS NOT NULL;",
+      "tags": [],
+      "trigger_mode": "on_change",
+      "watch_entities": [
+        "7a3c8557-f4a2-4d89-890f-469b7d3fa9d5"
+      ],
+      "collection": "Star Wars"
+    },
+    {
+      "name": "flatten_films",
+      "description": "Auto-flatten bronze.films \u2192 silver.films",
+      "source_layer": "bronze",
+      "target_layer": "silver",
+      "sql": "CREATE TABLE IF NOT EXISTS silver.films (\n    title VARCHAR,\n    episode_id BIGINT,\n    opening_crawl VARCHAR,\n    director VARCHAR,\n    producer VARCHAR,\n    release_date TIMESTAMP,\n    characters JSON,\n    planets JSON,\n    starships JSON,\n    vehicles JSON,\n    species JSON,\n    created TIMESTAMP,\n    edited TIMESTAMP,\n    url VARCHAR PRIMARY KEY\n);\n\nINSERT OR REPLACE INTO silver.films\nSELECT\n    json_extract_string(payload, '$.title') AS title,\n    TRY_CAST(json_extract(payload, '$.episode_id') AS BIGINT) AS episode_id,\n    json_extract_string(payload, '$.opening_crawl') AS opening_crawl,\n    json_extract_string(payload, '$.director') AS director,\n    json_extract_string(payload, '$.producer') AS producer,\n    TRY_CAST(json_extract(payload, '$.release_date') AS TIMESTAMP) AS release_date,\n    json_extract_string(payload, '$.characters') AS characters,\n    json_extract_string(payload, '$.planets') AS planets,\n    json_extract_string(payload, '$.starships') AS starships,\n    json_extract_string(payload, '$.vehicles') AS vehicles,\n    json_extract_string(payload, '$.species') AS species,\n    TRY_CAST(json_extract(payload, '$.created') AS TIMESTAMP) AS created,\n    TRY_CAST(json_extract(payload, '$.edited') AS TIMESTAMP) AS edited,\n    json_extract_string(payload, '$.url') AS url\nFROM bronze.films\nWHERE json_extract_string(payload, '$.url') IS NOT NULL;",
+      "tags": [],
+      "trigger_mode": "on_change",
+      "watch_entities": [
+        "9441a4d0-7c52-465a-a2b5-f4466f05341f"
+      ],
+      "collection": "Star Wars"
+    },
+    {
+      "name": "flatten_vehicles",
+      "description": "Auto-flatten bronze.vehicles \u2192 silver.vehicles",
+      "source_layer": "bronze",
+      "target_layer": "silver",
+      "sql": "CREATE TABLE IF NOT EXISTS silver.vehicles (\n    name VARCHAR PRIMARY KEY,\n    model VARCHAR,\n    manufacturer VARCHAR,\n    cost_in_credits VARCHAR,\n    length DOUBLE,\n    max_atmosphering_speed BIGINT,\n    crew BIGINT,\n    passengers BIGINT,\n    cargo_capacity VARCHAR,\n    consumables VARCHAR,\n    vehicle_class VARCHAR,\n    pilots JSON,\n    films JSON,\n    created TIMESTAMP,\n    edited TIMESTAMP,\n    url VARCHAR\n);\n\nINSERT OR REPLACE INTO silver.vehicles\nSELECT\n    json_extract_string(payload, '$.name') AS name,\n    json_extract_string(payload, '$.model') AS model,\n    json_extract_string(payload, '$.manufacturer') AS manufacturer,\n    json_extract_string(payload, '$.cost_in_credits') AS cost_in_credits,\n    TRY_CAST(json_extract(payload, '$.length') AS DOUBLE) AS length,\n    TRY_CAST(json_extract(payload, '$.max_atmosphering_speed') AS BIGINT) AS max_atmosphering_speed,\n    TRY_CAST(json_extract(payload, '$.crew') AS BIGINT) AS crew,\n    TRY_CAST(json_extract(payload, '$.passengers') AS BIGINT) AS passengers,\n    json_extract_string(payload, '$.cargo_capacity') AS cargo_capacity,\n    json_extract_string(payload, '$.consumables') AS consumables,\n    json_extract_string(payload, '$.vehicle_class') AS vehicle_class,\n    json_extract_string(payload, '$.pilots') AS pilots,\n    json_extract_string(payload, '$.films') AS films,\n    TRY_CAST(json_extract(payload, '$.created') AS TIMESTAMP) AS created,\n    TRY_CAST(json_extract(payload, '$.edited') AS TIMESTAMP) AS edited,\n    json_extract_string(payload, '$.url') AS url\nFROM bronze.vehicles\nWHERE json_extract_string(payload, '$.name') IS NOT NULL;",
+      "tags": [],
+      "trigger_mode": "on_change",
+      "watch_entities": [
+        "352b30df-bfc7-4761-a370-76a7e5e9630b"
+      ],
+      "collection": "Star Wars"
+    },
+    {
+      "name": "flatten_species",
+      "description": "Auto-flatten bronze.species \u2192 silver.species",
+      "source_layer": "bronze",
+      "target_layer": "silver",
+      "sql": "CREATE TABLE IF NOT EXISTS silver.species (\n    name VARCHAR PRIMARY KEY,\n    classification VARCHAR,\n    designation VARCHAR,\n    average_height VARCHAR,\n    skin_colors VARCHAR,\n    hair_colors VARCHAR,\n    eye_colors VARCHAR,\n    average_lifespan VARCHAR,\n    homeworld VARCHAR,\n    language VARCHAR,\n    people JSON,\n    films JSON,\n    created TIMESTAMP,\n    edited TIMESTAMP,\n    url VARCHAR\n);\n\nINSERT OR REPLACE INTO silver.species\nSELECT\n    json_extract_string(payload, '$.name') AS name,\n    json_extract_string(payload, '$.classification') AS classification,\n    json_extract_string(payload, '$.designation') AS designation,\n    json_extract_string(payload, '$.average_height') AS average_height,\n    json_extract_string(payload, '$.skin_colors') AS skin_colors,\n    json_extract_string(payload, '$.hair_colors') AS hair_colors,\n    json_extract_string(payload, '$.eye_colors') AS eye_colors,\n    json_extract_string(payload, '$.average_lifespan') AS average_lifespan,\n    json_extract_string(payload, '$.homeworld') AS homeworld,\n    json_extract_string(payload, '$.language') AS language,\n    json_extract_string(payload, '$.people') AS people,\n    json_extract_string(payload, '$.films') AS films,\n    TRY_CAST(json_extract(payload, '$.created') AS TIMESTAMP) AS created,\n    TRY_CAST(json_extract(payload, '$.edited') AS TIMESTAMP) AS edited,\n    json_extract_string(payload, '$.url') AS url\nFROM bronze.species\nWHERE json_extract_string(payload, '$.name') IS NOT NULL;",
+      "tags": [],
+      "trigger_mode": "on_change",
+      "watch_entities": [
+        "141465a1-7fd9-4096-a4ff-37f8579f7bd6"
+      ],
+      "collection": "Star Wars"
+    }
+  ],
+  "connectors": [
+    {
+      "name": "people_connector",
+      "description": "Auto-created connector for people",
+      "connector_type": "api_pull",
+      "config": {
+        "url": "https://swapi.dev/api/people/",
+        "headers": {},
+        "json_path": "results",
+        "pagination": {
+          "strategy": "next_url",
+          "next_url_path": "next"
+        }
+      },
+      "tags": [],
+      "collection": "Star Wars",
+      "entity_name": "people",
+      "cron_schedule": null,
+      "status": "active"
+    },
+    {
+      "name": "planets_connector",
+      "description": "Auto-created connector for planets",
+      "connector_type": "api_pull",
+      "config": {
+        "url": "https://swapi.dev/api/planets/",
+        "headers": {},
+        "json_path": "results",
+        "pagination": {
+          "strategy": "next_url",
+          "next_url_path": "next"
+        }
+      },
+      "tags": [],
+      "collection": "Star Wars",
+      "entity_name": "planets",
+      "cron_schedule": null,
+      "status": "active"
+    },
+    {
+      "name": "starships_connector",
+      "description": "Auto-created connector for starships",
+      "connector_type": "api_pull",
+      "config": {
+        "url": "https://swapi.dev/api/starships/",
+        "headers": {},
+        "json_path": "results",
+        "pagination": {
+          "next_url_path": "next",
+          "strategy": "next_url"
+        }
+      },
+      "tags": [],
+      "collection": "Star Wars",
+      "entity_name": "starships",
+      "cron_schedule": null,
+      "status": "active"
+    },
+    {
+      "name": "films_connector",
+      "description": "Auto-created connector for films",
+      "connector_type": "api_pull",
+      "config": {
+        "url": "https://swapi.dev/api/films/",
+        "headers": {},
+        "json_path": "results",
+        "pagination": {
+          "next_url_path": "next",
+          "strategy": "next_url"
+        }
+      },
+      "tags": [],
+      "collection": "Star Wars",
+      "entity_name": "films",
+      "cron_schedule": null,
+      "status": "active"
+    },
+    {
+      "name": "vehicles_connector",
+      "description": "Auto-created connector for vehicles",
+      "connector_type": "api_pull",
+      "config": {
+        "url": "https://swapi.dev/api/vehicles/",
+        "headers": {},
+        "json_path": "results",
+        "pagination": {
+          "strategy": "next_url",
+          "next_url_path": "next"
+        }
+      },
+      "tags": [],
+      "collection": "Star Wars",
+      "entity_name": "vehicles",
+      "cron_schedule": null,
+      "status": "active"
+    },
+    {
+      "name": "species_connector",
+      "description": "Auto-created connector for species",
+      "connector_type": "api_pull",
+      "config": {
+        "url": "https://swapi.dev/api/species/",
+        "headers": {},
+        "json_path": "results",
+        "pagination": {
+          "next_url_path": "next",
+          "strategy": "next_url"
+        }
+      },
+      "tags": [],
+      "collection": "Star Wars",
+      "entity_name": "species",
+      "cron_schedule": null,
+      "status": "active"
+    }
+  ]
+}
