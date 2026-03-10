@@ -293,6 +293,23 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/** Redirect superusers with no active tenant to the Platform page. */
+function RequireTenant({ children }: { children: React.ReactNode }) {
+  const isSU = isSuperUser()
+  const [hasTenant, setHasTenant] = useState(() => Boolean(getActiveTenantId()))
+
+  useEffect(() => {
+    const handler = () => setHasTenant(Boolean(getActiveTenantId()))
+    window.addEventListener('jonas_tenant_changed', handler)
+    return () => window.removeEventListener('jonas_tenant_changed', handler)
+  }, [])
+
+  if (isSU && !hasTenant) {
+    return <Navigate to="/superuser" replace />
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
@@ -310,27 +327,29 @@ export default function App() {
             <RequireAuth>
               <Layout>
                 <Routes>
-                  <Route index             element={<DashboardPage />} />
-                  <Route path="chat"       element={
-                    <ChatPage
-                      messages={chatMessages}
-                      setMessages={setChatMessages}
-                      input={chatInput}
-                      setInput={setChatInput}
-                    />
-                  } />
-                  <Route path="query"       element={<QueryWorkbenchPage />} />
-                  <Route path="collections" element={<CollectionsPage />} />
-                  <Route path="catalogue"   element={<CataloguePage />} />
-                  <Route path="transforms" element={<TransformsPage />} />
-                  <Route path="connectors" element={<ConnectorsPage />} />
-                  <Route path="lineage"    element={<LineagePage />} />
-                  <Route path="dashboards" element={<DashboardsPage />} />
-                  <Route path="audit"      element={<AuditPage />} />
-                  <Route path="team"       element={<TenantUsersPage />} />
-                  <Route path="settings"   element={<TenantConfigPage />} />
                   <Route path="superuser"  element={<SuperUserPage />} />
-                  <Route path="*"          element={<DashboardPage />} />
+                  <Route index             element={<RequireTenant><DashboardPage /></RequireTenant>} />
+                  <Route path="chat"       element={
+                    <RequireTenant>
+                      <ChatPage
+                        messages={chatMessages}
+                        setMessages={setChatMessages}
+                        input={chatInput}
+                        setInput={setChatInput}
+                      />
+                    </RequireTenant>
+                  } />
+                  <Route path="query"       element={<RequireTenant><QueryWorkbenchPage /></RequireTenant>} />
+                  <Route path="collections" element={<RequireTenant><CollectionsPage /></RequireTenant>} />
+                  <Route path="catalogue"   element={<RequireTenant><CataloguePage /></RequireTenant>} />
+                  <Route path="transforms"  element={<RequireTenant><TransformsPage /></RequireTenant>} />
+                  <Route path="connectors"  element={<RequireTenant><ConnectorsPage /></RequireTenant>} />
+                  <Route path="lineage"     element={<RequireTenant><LineagePage /></RequireTenant>} />
+                  <Route path="dashboards"  element={<RequireTenant><DashboardsPage /></RequireTenant>} />
+                  <Route path="audit"       element={<RequireTenant><AuditPage /></RequireTenant>} />
+                  <Route path="team"        element={<RequireTenant><TenantUsersPage /></RequireTenant>} />
+                  <Route path="settings"    element={<RequireTenant><TenantConfigPage /></RequireTenant>} />
+                  <Route path="*"           element={<RequireTenant><DashboardPage /></RequireTenant>} />
                 </Routes>
               </Layout>
             </RequireAuth>

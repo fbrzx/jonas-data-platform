@@ -55,7 +55,9 @@ def handle(
         if source_type == "api_pull":
             url = tool_input.get("url", "").strip()
             if not url:
-                return json.dumps({"error": "url is required for api_pull source_type."})
+                return json.dumps(
+                    {"error": "url is required for api_pull source_type."}
+                )
             method = tool_input.get("method", "GET").upper()
             headers: dict[str, str] = tool_input.get("headers") or {}
             json_path: str = tool_input.get("json_path", "")
@@ -72,7 +74,9 @@ def handle(
             raw = tool_input.get("sample_data")
             if not raw:
                 return json.dumps(
-                    {"error": "sample_data is required for webhook/sample_json source_type."}
+                    {
+                        "error": "sample_data is required for webhook/sample_json source_type."
+                    }
                 )
             if isinstance(raw, dict):
                 sample_records = [raw]
@@ -144,7 +148,9 @@ def handle(
         connector = create_integration(connector_data, tenant_id)
         connector_id = str(connector["id"])
         result["connector_id"] = connector_id
-        steps.append(f"Created {connector_data['connector_type']} connector ({connector_id})")
+        steps.append(
+            f"Created {connector_data['connector_type']} connector ({connector_id})"
+        )
 
         # ── Step 5: Ingest data ────────────────────────────────────────────
         from src.integrations.ingest import land_api_pull, land_webhook
@@ -154,8 +160,13 @@ def handle(
 
         if source_type == "api_pull":
             ingest_result = land_api_pull(
-                url, headers, name, tenant_id, connector_id,
-                json_path=json_path, pagination=pagination,
+                url,
+                headers,
+                name,
+                tenant_id,
+                connector_id,
+                json_path=json_path,
+                pagination=pagination,
             )
             total_landed = ingest_result.get("rows_landed", 0)
             ingest_errors = ingest_result.get("errors", [])
@@ -171,13 +182,18 @@ def handle(
                 data_to_ingest = [data_to_ingest]
             for record in data_to_ingest:
                 r = land_webhook(
-                    name, record, {}, tenant_id,
-                    integration_id=connector_id, _fire_trigger=False,
+                    name,
+                    record,
+                    {},
+                    tenant_id,
+                    integration_id=connector_id,
+                    _fire_trigger=False,
                 )
                 total_landed += r["rows_landed"]
                 ingest_errors.extend(r.get("errors", []))
             if total_landed > 0:
                 from src.transforms.triggers import fire_on_data_changed
+
                 fire_on_data_changed(name, "bronze", tenant_id)
             steps.append(f"Ingested {total_landed} rows via webhook")
 
@@ -212,10 +228,30 @@ def handle(
             }
             transform = create_transform(transform_data, tenant_id, created_by)
             transform_id = str(transform["id"])
+
+            # Auto-approve: the SQL is machine-generated and already validated.
+            from src.transforms.service import approve_transform, execute_transform
+
+            approve_transform(transform_id, "approve", created_by, tenant_id)
+
+            # Run immediately so the bronze data just landed flows to silver.
+            exec_result = execute_transform(transform_id, tenant_id)
+            exec_errors = exec_result.get("errors", [])
+
             result["transform_id"] = transform_id
-            result["transform_status"] = "draft — needs admin approval"
+            result["transform_status"] = "approved"
             result["transform_sql"] = sql
-            steps.append(f"Created on_change transform 'flatten_{name}' ({transform_id})")
+            result["silver_rows"] = exec_result.get("rows_affected", 0)
+            if exec_errors:
+                result["silver_errors"] = exec_errors[:5]
+            steps.append(
+                f"Created + approved on_change transform 'flatten_{name}' ({transform_id})"
+                + (
+                    f"; silver populated with {result['silver_rows']} rows"
+                    if not exec_errors
+                    else f"; silver errors: {exec_errors[0]}"
+                )
+            )
 
             # Register silver entity
             silver_fields = [
