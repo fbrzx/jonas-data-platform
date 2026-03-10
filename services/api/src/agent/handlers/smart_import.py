@@ -191,10 +191,6 @@ def handle(
                 )
                 total_landed += r["rows_landed"]
                 ingest_errors.extend(r.get("errors", []))
-            if total_landed > 0:
-                from src.transforms.triggers import fire_on_data_changed
-
-                fire_on_data_changed(name, "bronze", tenant_id)
             steps.append(f"Ingested {total_landed} rows via webhook")
 
         result["rows_landed"] = total_landed
