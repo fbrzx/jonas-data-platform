@@ -123,15 +123,22 @@ def _persist_rotated_refresh_token(
 
         existing = get_integration(integration_id, tenant_id)
         if not existing:
-            _log.warning("[oauth] cannot persist rotated token: connector %s not found", integration_id)
+            _log.warning(
+                "[oauth] cannot persist rotated token: connector %s not found", integration_id
+            )
             return
         raw_auth = existing.get("auth_config") or {}
-        current: dict[str, Any] = json.loads(raw_auth) if isinstance(raw_auth, str) else dict(raw_auth)
+        current: dict[str, Any] = (
+            json.loads(raw_auth) if isinstance(raw_auth, str) else dict(raw_auth)
+        )
         current["refresh_token"] = new_refresh_token
         update_integration(integration_id, {"auth_config": current}, tenant_id)
         _log.info("[oauth] persisted rotated refresh_token for connector %s", integration_id)
     except Exception as exc:
-        _log.error("[oauth] failed to persist rotated refresh_token for connector %s: %s", integration_id, exc)
+        _log.error(
+            "[oauth] failed to persist rotated refresh_token for connector %s: %s",
+            integration_id, exc,
+        )
 
 
 def _fetch_refresh_token_grant(
@@ -282,7 +289,10 @@ def _fetch_salesforce_jwt(auth_config: dict[str, Any]) -> str:
     with httpx.Client(timeout=15, follow_redirects=False) as client:
         resp = client.post(
             token_url,
-            data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": assertion},
+            data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                "assertion": assertion,
+            },
         )
         resp.raise_for_status()
         body = resp.json()

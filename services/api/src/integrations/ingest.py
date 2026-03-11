@@ -262,7 +262,10 @@ def land_api_pull(
     except Exception as exc:
         msg = f"OAuth token fetch failed: {exc}"
         run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
-        return {"rows_received": 0, "rows_landed": 0, "target_table": table, "errors": [msg], "run_id": run_id}
+        return {
+            "rows_received": 0, "rows_landed": 0,
+            "target_table": table, "errors": [msg], "run_id": run_id,
+        }
 
     # base_url is used to resolve relative pagination URLs (e.g. Salesforce nextRecordsUrl)
     base_url = (auth_config or {}).get("base_url", "").rstrip("/")
@@ -398,7 +401,7 @@ def land_api_pull(
                 if not next_val or not isinstance(next_val, str):
                     current_url = None
                 else:
-                    # Resolve relative paths (e.g. Salesforce returns "/services/data/vXX/query/...")
+                    # Resolve relative paths (e.g. Salesforce "/services/data/vXX/query/...")
                     if next_val.startswith("/") and base_url:
                         next_val = f"{base_url}{next_val}"
                     ssrf_err = check_url(next_val)
