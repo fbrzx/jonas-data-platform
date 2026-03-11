@@ -200,11 +200,240 @@ function UploadModal({
   )
 }
 
+// ── OAuth Config Section ────────────────────────────────────────────────────────
+
+type OAuthGrant = 'none' | 'client_credentials' | 'refresh_token' | 'password' | 'salesforce_jwt'
+
+interface OAuthConfig {
+  grant_type?: OAuthGrant
+  token_url?: string
+  client_id?: string
+  client_secret?: string
+  refresh_token?: string
+  scope?: string
+  audience?: string
+  base_url?: string
+  username?: string
+  password?: string
+  subject?: string
+  private_key_pem?: string
+}
+
+const GRANT_OPTIONS: { value: OAuthGrant; label: string; hint: string }[] = [
+  { value: 'none',               label: 'None',                hint: 'No OAuth — use a static Bearer token in the Authorization header above, or no auth' },
+  { value: 'client_credentials', label: 'Client Credentials',  hint: 'M2M — re-fetches access tokens using client_id + client_secret (Salesforce Connected Apps, Adobe IMS)' },
+  { value: 'refresh_token',      label: 'Refresh Token',       hint: 'Exchange a long-lived refresh token for short-lived access tokens. Rotated tokens are persisted automatically.' },
+  { value: 'password',           label: 'Password',            hint: 'Resource-owner password flow (username + password)' },
+  { value: 'salesforce_jwt',     label: 'Salesforce JWT',      hint: 'Salesforce JWT Bearer / certificate flow — no client_secret required' },
+]
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="font-mono text-[10px] text-j-dim block mb-1">{label}</label>
+      {children}
+      {hint && <p className="font-mono text-[10px] text-j-dim mt-0.5 opacity-70">{hint}</p>}
+    </div>
+  )
+}
+
+function inputCls(bg = 'bg-j-bg') {
+  return `w-full ${bg} border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent`
+}
+
+function OAuthConfigSection({
+  value,
+  onChange,
+}: {
+  value: OAuthConfig
+  onChange: (v: OAuthConfig) => void
+}) {
+  const [open, setOpen] = useState((value.grant_type ?? 'none') !== 'none')
+
+  const grant = value.grant_type ?? 'none'
+
+  function set(patch: Partial<OAuthConfig>) {
+    onChange({ ...value, ...patch })
+  }
+
+  return (
+    <div className="rounded border border-j-border bg-j-surface2">
+      {/* Header toggle */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 font-mono text-[10px] text-left hover:bg-j-surface transition-colors rounded"
+      >
+        <span className="tracking-[0.1em] uppercase text-j-dim">
+          OAuth / Token Auth
+          {grant !== 'none' && (
+            <span className="ml-2 normal-case text-j-accent">{grant}</span>
+          )}
+        </span>
+        <span className="text-j-dim">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 space-y-3 border-t border-j-border">
+          {/* Grant type selector */}
+          <div className="pt-2">
+            <label className="font-mono text-[10px] text-j-dim block mb-1.5">Grant Type</label>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {GRANT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set({ grant_type: opt.value })}
+                  className={`px-2 py-1.5 rounded border font-mono text-[10px] text-left transition-colors ${
+                    grant === opt.value
+                      ? 'border-j-accent bg-j-accent/10 text-j-accent'
+                      : 'border-j-border text-j-dim hover:border-j-border-b'
+                  }`}
+                  title={opt.hint}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {grant !== 'none' && (
+              <p className="font-mono text-[10px] text-j-dim mt-1.5 opacity-70">
+                {GRANT_OPTIONS.find((o) => o.value === grant)?.hint}
+              </p>
+            )}
+          </div>
+
+          {/* refresh_token fields */}
+          {grant === 'refresh_token' && (
+            <>
+              <Field label="Token URL *">
+                <input type="url" placeholder="https://login.salesforce.com/services/oauth2/token"
+                  value={value.token_url ?? ''} onChange={(e) => set({ token_url: e.target.value })}
+                  className={inputCls()} />
+              </Field>
+              <Field label="Client ID *">
+                <input type="text" placeholder="3MVG9…" value={value.client_id ?? ''}
+                  onChange={(e) => set({ client_id: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Client Secret *">
+                <input type="password" placeholder="••••••••" value={value.client_secret ?? ''}
+                  onChange={(e) => set({ client_secret: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field
+                label="Refresh Token *"
+                hint="Paste your initial refresh token. If the server rotates it on use, the new token is saved back automatically."
+              >
+                <textarea
+                  rows={2}
+                  placeholder="5Aep861…"
+                  value={value.refresh_token ?? ''}
+                  onChange={(e) => set({ refresh_token: e.target.value })}
+                  className={`${inputCls()} resize-none`}
+                />
+              </Field>
+              <Field label="Scope" hint="Space-delimited (optional). e.g. api refresh_token offline_access">
+                <input type="text" placeholder="api refresh_token" value={value.scope ?? ''}
+                  onChange={(e) => set({ scope: e.target.value })} className={inputCls()} />
+              </Field>
+            </>
+          )}
+
+          {/* client_credentials / password shared fields */}
+          {(grant === 'client_credentials' || grant === 'password') && (
+            <>
+              <Field label="Token URL *">
+                <input type="url" placeholder="https://login.salesforce.com/services/oauth2/token"
+                  value={value.token_url ?? ''} onChange={(e) => set({ token_url: e.target.value })}
+                  className={inputCls()} />
+              </Field>
+              <Field label="Client ID *">
+                <input type="text" placeholder="3MVG9…" value={value.client_id ?? ''}
+                  onChange={(e) => set({ client_id: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Client Secret *">
+                <input type="password" placeholder="••••••••" value={value.client_secret ?? ''}
+                  onChange={(e) => set({ client_secret: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Scope" hint="Space-delimited. e.g. api refresh_token (optional)">
+                <input type="text" placeholder="api" value={value.scope ?? ''}
+                  onChange={(e) => set({ scope: e.target.value })} className={inputCls()} />
+              </Field>
+              {grant === 'client_credentials' && (
+                <Field label="Audience" hint="Required for Adobe IMS. Leave blank for Salesforce.">
+                  <input type="text" placeholder="https://ims-na1.adobelogin.com/c/…"
+                    value={value.audience ?? ''} onChange={(e) => set({ audience: e.target.value })}
+                    className={inputCls()} />
+                </Field>
+              )}
+            </>
+          )}
+
+          {/* password-only fields */}
+          {grant === 'password' && (
+            <>
+              <Field label="Username *">
+                <input type="text" placeholder="user@org.com" value={value.username ?? ''}
+                  onChange={(e) => set({ username: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Password *">
+                <input type="password" placeholder="••••••••" value={value.password ?? ''}
+                  onChange={(e) => set({ password: e.target.value })} className={inputCls()} />
+              </Field>
+            </>
+          )}
+
+          {/* salesforce_jwt fields */}
+          {grant === 'salesforce_jwt' && (
+            <>
+              <Field label="Token URL" hint="Defaults to https://login.salesforce.com/services/oauth2/token">
+                <input type="url" placeholder="https://login.salesforce.com/services/oauth2/token"
+                  value={value.token_url ?? ''} onChange={(e) => set({ token_url: e.target.value })}
+                  className={inputCls()} />
+              </Field>
+              <Field label="Client ID (Consumer Key) *">
+                <input type="text" placeholder="3MVG9…" value={value.client_id ?? ''}
+                  onChange={(e) => set({ client_id: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Subject (Salesforce username) *">
+                <input type="text" placeholder="admin@yourorg.com" value={value.subject ?? ''}
+                  onChange={(e) => set({ subject: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Private Key PEM *" hint="RSA private key. Paste the full -----BEGIN RSA PRIVATE KEY----- block.">
+                <textarea
+                  rows={4}
+                  placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;MIIEo...&#10;-----END RSA PRIVATE KEY-----"
+                  value={value.private_key_pem ?? ''}
+                  onChange={(e) => set({ private_key_pem: e.target.value })}
+                  className={`${inputCls()} resize-y`}
+                />
+              </Field>
+              <Field label="Audience" hint="Defaults to https://login.salesforce.com">
+                <input type="text" placeholder="https://login.salesforce.com"
+                  value={value.audience ?? ''} onChange={(e) => set({ audience: e.target.value })}
+                  className={inputCls()} />
+              </Field>
+            </>
+          )}
+
+          {/* base_url — shown for any OAuth grant (Salesforce relative URL resolution) */}
+          {grant !== 'none' && (
+            <Field label="Base URL" hint="Used to resolve relative pagination URLs (e.g. Salesforce nextRecordsUrl). e.g. https://yourorg.my.salesforce.com">
+              <input type="url" placeholder="https://yourorg.my.salesforce.com"
+                value={value.base_url ?? ''} onChange={(e) => set({ base_url: e.target.value })}
+                className={inputCls()} />
+            </Field>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Create Connector Modal ─────────────────────────────────────────────────────
 
 function CreateModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<IntegrationCreate & { cron_schedule?: string }>({ name: '', connector_type: 'webhook' })
+  const [oauthConfig, setOauthConfig] = useState<OAuthConfig>({ grant_type: 'none' })
   const [error, setError] = useState<string | null>(null)
   const { data: entities } = useQuery({ queryKey: ['entities'], queryFn: api.catalogue.list, staleTime: 60_000 })
 
@@ -222,7 +451,11 @@ function CreateModal({ onClose }: { onClose: () => void }) {
     if (!form.name.trim()) { setError('Name is required'); return }
     setError(null)
     const { cron_schedule, ...rest } = form
-    mutation.mutate(rest, {
+    // Strip empty OAuth config
+    const authCfg = oauthConfig.grant_type && oauthConfig.grant_type !== 'none'
+      ? Object.fromEntries(Object.entries(oauthConfig).filter(([, v]) => v !== '' && v != null))
+      : undefined
+    mutation.mutate({ ...rest, auth_config: authCfg }, {
       onSuccess: async (created) => {
         if (cron_schedule && created?.id) {
           await api.connectors.update(created.id, { cron_schedule }).catch(() => undefined)
@@ -281,7 +514,9 @@ function CreateModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-j-dim block mb-1">Authorization header <span className="text-j-dim">(optional)</span></label>
+                <label className="font-mono text-[10px] text-j-dim block mb-1">
+                  Static Authorization header <span className="text-j-dim">(optional — use OAuth below for Salesforce / Adobe)</span>
+                </label>
                 <input
                   type="text"
                   placeholder="Bearer your-token-here"
@@ -293,6 +528,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
                   className="w-full bg-j-bg border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
                 />
               </div>
+              <OAuthConfigSection value={oauthConfig} onChange={setOauthConfig} />
             </div>
           )}
 
@@ -390,6 +626,10 @@ function EditConnectorModal({ connector, onClose }: { connector: Integration; on
     try { return JSON.parse(connector.config ?? '{}') } catch { return {} }
   })()
 
+  const parsedAuthConfig: OAuthConfig = (() => {
+    try { return JSON.parse(connector.auth_config ?? '{}') as OAuthConfig } catch { return {} }
+  })()
+
   const [form, setForm] = useState<IntegrationUpdate>({
     name: connector.name,
     description: connector.description ?? '',
@@ -398,6 +638,9 @@ function EditConnectorModal({ connector, onClose }: { connector: Integration; on
     entity_id: connector.target_entity_id ?? null,
     cron_schedule: connector.cron_schedule ?? null,
   })
+  const [oauthConfig, setOauthConfig] = useState<OAuthConfig>(
+    parsedAuthConfig.grant_type ? parsedAuthConfig : { grant_type: 'none' }
+  )
   const { data: entities } = useQuery({ queryKey: ['entities'], queryFn: api.catalogue.list, staleTime: 60_000 })
   const [error, setError] = useState<string | null>(null)
 
@@ -412,7 +655,10 @@ function EditConnectorModal({ connector, onClose }: { connector: Integration; on
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    mutation.mutate(form)
+    const authCfg = oauthConfig.grant_type && oauthConfig.grant_type !== 'none'
+      ? Object.fromEntries(Object.entries(oauthConfig).filter(([, v]) => v !== '' && v != null))
+      : {}
+    mutation.mutate({ ...form, auth_config: authCfg })
   }
 
   return (
@@ -507,7 +753,9 @@ function EditConnectorModal({ connector, onClose }: { connector: Integration; on
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-j-dim block mb-1">Authorization header <span className="text-j-dim">(optional)</span></label>
+                <label className="font-mono text-[10px] text-j-dim block mb-1">
+                  Static Authorization header <span className="text-j-dim">(optional — use OAuth below for Salesforce / Adobe)</span>
+                </label>
                 <input
                   type="text"
                   placeholder="Bearer your-token-here"
@@ -519,6 +767,7 @@ function EditConnectorModal({ connector, onClose }: { connector: Integration; on
                   className="w-full bg-j-bg border border-j-border rounded px-3 py-1.5 font-mono text-xs text-j-bright placeholder:text-j-dim focus:outline-none focus:border-j-accent"
                 />
               </div>
+              <OAuthConfigSection value={oauthConfig} onChange={setOauthConfig} />
               <div>
                 <label className="font-mono text-[10px] text-j-dim block mb-1">Cron Schedule <span className="text-j-dim">(optional)</span></label>
                 <input
@@ -591,11 +840,15 @@ function ConnectorCard({
   const parsedConfig: Record<string, unknown> = (() => {
     try { return JSON.parse(connector.config ?? '{}') } catch { return {} }
   })()
+  const parsedAuthConfig: OAuthConfig = (() => {
+    try { return JSON.parse(connector.auth_config ?? '{}') as OAuthConfig } catch { return {} }
+  })()
   // Support both new (url/headers) and legacy (source_url/auth_header) config keys
   const configUrl = ((parsedConfig.url ?? parsedConfig.source_url) as string | undefined) ?? ''
   const configAuth =
     ((parsedConfig.headers as Record<string, string> | undefined)?.Authorization) ??
     (parsedConfig.auth_header as string | undefined) ?? ''
+  const oauthGrant = parsedAuthConfig.grant_type
 
   function handleCopy() {
     copyText(webhookUrl(connector.id))
@@ -670,7 +923,14 @@ function ConnectorCard({
           </div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] text-j-dim shrink-0">Auth</span>
-            {configAuth ? (
+            {oauthGrant && oauthGrant !== 'none' ? (
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-j-accent bg-j-accent/10 text-j-accent">
+                OAuth · {oauthGrant === 'client_credentials' ? 'client creds'
+                       : oauthGrant === 'refresh_token' ? 'refresh token'
+                       : oauthGrant === 'salesforce_jwt' ? 'SF JWT'
+                       : oauthGrant}
+              </span>
+            ) : configAuth ? (
               <span className="font-mono text-[10px] text-j-green">
                 {configAuth.slice(0, 14)}{configAuth.length > 14 ? '●●●●' : ''}
               </span>

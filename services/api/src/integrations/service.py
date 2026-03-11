@@ -14,9 +14,11 @@ def _now() -> str:
 
 
 def _decrypt_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Decrypt config field in a connector row if it was encrypted at rest."""
+    """Decrypt config and auth_config fields in a connector row if encrypted at rest."""
     if row.get("config"):
         row["config"] = decrypt_config(str(row["config"]))
+    if row.get("auth_config"):
+        row["auth_config"] = decrypt_config(str(row["auth_config"]))
     return row
 
 
@@ -46,6 +48,7 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     integration_id = str(uuid.uuid4())
     now = _now()
     raw_config = encrypt_config(json.dumps(data.get("config", {})))
+    raw_auth_config = encrypt_config(json.dumps(data.get("auth_config", {})))
 
     # Ensure entity link: resolve or auto-create a bronze entity
     entity_id = data.get("entity_id")
@@ -71,9 +74,9 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
     conn.execute(
         """
         INSERT INTO integrations.connector
-            (id, tenant_id, name, description, connector_type, config,
+            (id, tenant_id, name, description, connector_type, config, auth_config,
              status, tags, target_entity_id, collection, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
         """,
         [
             integration_id,
@@ -82,6 +85,7 @@ def create_integration(data: dict[str, Any], tenant_id: str) -> dict[str, Any]:
             data.get("description", ""),
             data["connector_type"],
             raw_config,
+            raw_auth_config,
             json.dumps(data.get("tags", [])),
             entity_id,
             data.get("collection"),
@@ -101,12 +105,14 @@ def update_integration(
     if not existing:
         return None
 
-    _JSON_COLUMNS = {"config", "tags"}
+    _ENCRYPTED_JSON_COLUMNS = {"config", "auth_config"}
+    _PLAIN_JSON_COLUMNS = {"tags"}
     _ALLOWED_COLS = {
         "name",
         "description",
         "status",
         "config",
+        "auth_config",
         "tags",
         "target_entity_id",
         "cron_schedule",
@@ -122,9 +128,10 @@ def update_integration(
     for k, v in data.items():
         if v is None or k not in _ALLOWED_COLS:
             continue
-        if k in _JSON_COLUMNS and not isinstance(v, str):
-            serialised = json.dumps(v)
-            db_updates[k] = encrypt_config(serialised) if k == "config" else serialised
+        if k in _ENCRYPTED_JSON_COLUMNS and not isinstance(v, str):
+            db_updates[k] = encrypt_config(json.dumps(v))
+        elif k in _PLAIN_JSON_COLUMNS and not isinstance(v, str):
+            db_updates[k] = json.dumps(v)
         else:
             db_updates[k] = v
 
