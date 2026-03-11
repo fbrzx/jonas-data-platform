@@ -255,7 +255,10 @@ def land_api_pull(
     # Resolve OAuth token if auth_config specifies a grant_type.
     # Static Bearer tokens stored in config.headers continue to work unchanged.
     try:
-        headers = resolve_oauth_headers(auth_config or {}, headers)
+        headers = resolve_oauth_headers(
+            auth_config or {}, headers,
+            integration_id=integration_id, tenant_id=tenant_id,
+        )
     except Exception as exc:
         msg = f"OAuth token fetch failed: {exc}"
         run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])

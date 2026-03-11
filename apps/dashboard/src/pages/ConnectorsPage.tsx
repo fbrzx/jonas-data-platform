@@ -202,13 +202,14 @@ function UploadModal({
 
 // ── OAuth Config Section ────────────────────────────────────────────────────────
 
-type OAuthGrant = 'none' | 'client_credentials' | 'password' | 'salesforce_jwt'
+type OAuthGrant = 'none' | 'client_credentials' | 'refresh_token' | 'password' | 'salesforce_jwt'
 
 interface OAuthConfig {
   grant_type?: OAuthGrant
   token_url?: string
   client_id?: string
   client_secret?: string
+  refresh_token?: string
   scope?: string
   audience?: string
   base_url?: string
@@ -220,7 +221,8 @@ interface OAuthConfig {
 
 const GRANT_OPTIONS: { value: OAuthGrant; label: string; hint: string }[] = [
   { value: 'none',               label: 'None',                hint: 'No OAuth — use a static Bearer token in the Authorization header above, or no auth' },
-  { value: 'client_credentials', label: 'Client Credentials',  hint: 'Machine-to-machine. Used by Salesforce Connected Apps and Adobe IMS' },
+  { value: 'client_credentials', label: 'Client Credentials',  hint: 'M2M — re-fetches access tokens using client_id + client_secret (Salesforce Connected Apps, Adobe IMS)' },
+  { value: 'refresh_token',      label: 'Refresh Token',       hint: 'Exchange a long-lived refresh token for short-lived access tokens. Rotated tokens are persisted automatically.' },
   { value: 'password',           label: 'Password',            hint: 'Resource-owner password flow (username + password)' },
   { value: 'salesforce_jwt',     label: 'Salesforce JWT',      hint: 'Salesforce JWT Bearer / certificate flow — no client_secret required' },
 ]
@@ -276,7 +278,7 @@ function OAuthConfigSection({
           {/* Grant type selector */}
           <div className="pt-2">
             <label className="font-mono text-[10px] text-j-dim block mb-1.5">Grant Type</label>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
               {GRANT_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -299,6 +301,41 @@ function OAuthConfigSection({
               </p>
             )}
           </div>
+
+          {/* refresh_token fields */}
+          {grant === 'refresh_token' && (
+            <>
+              <Field label="Token URL *">
+                <input type="url" placeholder="https://login.salesforce.com/services/oauth2/token"
+                  value={value.token_url ?? ''} onChange={(e) => set({ token_url: e.target.value })}
+                  className={inputCls()} />
+              </Field>
+              <Field label="Client ID *">
+                <input type="text" placeholder="3MVG9…" value={value.client_id ?? ''}
+                  onChange={(e) => set({ client_id: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field label="Client Secret *">
+                <input type="password" placeholder="••••••••" value={value.client_secret ?? ''}
+                  onChange={(e) => set({ client_secret: e.target.value })} className={inputCls()} />
+              </Field>
+              <Field
+                label="Refresh Token *"
+                hint="Paste your initial refresh token. If the server rotates it on use, the new token is saved back automatically."
+              >
+                <textarea
+                  rows={2}
+                  placeholder="5Aep861…"
+                  value={value.refresh_token ?? ''}
+                  onChange={(e) => set({ refresh_token: e.target.value })}
+                  className={`${inputCls()} resize-none`}
+                />
+              </Field>
+              <Field label="Scope" hint="Space-delimited (optional). e.g. api refresh_token offline_access">
+                <input type="text" placeholder="api refresh_token" value={value.scope ?? ''}
+                  onChange={(e) => set({ scope: e.target.value })} className={inputCls()} />
+              </Field>
+            </>
+          )}
 
           {/* client_credentials / password shared fields */}
           {(grant === 'client_credentials' || grant === 'password') && (
@@ -889,6 +926,7 @@ function ConnectorCard({
             {oauthGrant && oauthGrant !== 'none' ? (
               <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-j-accent bg-j-accent/10 text-j-accent">
                 OAuth · {oauthGrant === 'client_credentials' ? 'client creds'
+                       : oauthGrant === 'refresh_token' ? 'refresh token'
                        : oauthGrant === 'salesforce_jwt' ? 'SF JWT'
                        : oauthGrant}
               </span>
