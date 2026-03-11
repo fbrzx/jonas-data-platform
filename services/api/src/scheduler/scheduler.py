@@ -126,9 +126,15 @@ def _run_connector_pull(connector_id: str, tenant_id: str) -> None:
 
         json_path: str = config.get("json_path", "")
         pagination: dict[str, Any] = config.get("pagination") or {}
+
+        raw_auth = integration.get("auth_config") or {}
+        auth_config: dict[str, Any] = (
+            json.loads(raw_auth) if isinstance(raw_auth, str) else raw_auth
+        )
+
         result = ingest.land_api_pull(
             url, headers, source, tenant_id, connector_id,
-            json_path=json_path, pagination=pagination,
+            json_path=json_path, pagination=pagination, auth_config=auth_config,
         )
         logger.info(
             "[scheduler] connector %s pull done — %d/%d rows",

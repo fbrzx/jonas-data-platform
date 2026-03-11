@@ -254,6 +254,16 @@ def handle(
             )
         headers: dict[str, str] = config.get("headers") or {}
 
+        # Resolve auth_config (OAuth credentials stored encrypted in DB)
+        raw_auth = integration.get("auth_config") or {}
+        if isinstance(raw_auth, str):
+            import json as _json
+            try:
+                raw_auth = _json.loads(raw_auth)
+            except Exception:
+                raw_auth = {}
+        auth_config: dict = raw_auth
+
         entity_id = integration.get("target_entity_id")
         if entity_id:
             from src.catalogue.service import get_entity
@@ -268,7 +278,7 @@ def handle(
 
         result = land_api_pull(
             url, headers, source, tenant_id, connector_id,
-            json_path=json_path, pagination=pagination,
+            json_path=json_path, pagination=pagination, auth_config=auth_config,
         )
         return json.dumps(result, default=str)
 

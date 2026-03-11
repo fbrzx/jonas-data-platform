@@ -9,6 +9,7 @@ from typing import Any
 
 from src.db.connection import get_conn
 from src.db.tenant_schemas import layer_schema, safe_tenant_id
+from src.security.oauth import resolve_headers as resolve_oauth_headers
 from src.security.ssrf import check_url
 from src.transforms.triggers import fire_on_data_changed
 
@@ -236,6 +237,7 @@ def land_api_pull(
     integration_id: str | None = None,
     json_path: str = "",
     pagination: dict[str, Any] | None = None,
+    auth_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Fetch JSON from a remote URL with optional pagination and land into bronze.
 
@@ -249,6 +251,18 @@ def land_api_pull(
 
     started_at = _now()
     table = _bronze_table(source, tenant_id)
+
+    # Resolve OAuth token if auth_config specifies a grant_type.
+    # Static Bearer tokens stored in config.headers continue to work unchanged.
+    try:
+        headers = resolve_oauth_headers(auth_config or {}, headers)
+    except Exception as exc:
+        msg = f"OAuth token fetch failed: {exc}"
+        run_id = _record_run(integration_id, "failed", started_at, 0, 0, 0, [msg])
+        return {"rows_received": 0, "rows_landed": 0, "target_table": table, "errors": [msg], "run_id": run_id}
+
+    # base_url is used to resolve relative pagination URLs (e.g. Salesforce nextRecordsUrl)
+    base_url = (auth_config or {}).get("base_url", "").rstrip("/")
 
     pagination = pagination or {}
     strategy = pagination.get("strategy", "")
@@ -381,6 +395,9 @@ def land_api_pull(
                 if not next_val or not isinstance(next_val, str):
                     current_url = None
                 else:
+                    # Resolve relative paths (e.g. Salesforce returns "/services/data/vXX/query/...")
+                    if next_val.startswith("/") and base_url:
+                        next_val = f"{base_url}{next_val}"
                     ssrf_err = check_url(next_val)
                     if ssrf_err:
                         all_errors.append(f"SSRF blocked next URL: {next_val}")

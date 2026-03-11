@@ -12,6 +12,9 @@ class IntegrationCreate(BaseModel):
     description: str = ""
     connector_type: str  # webhook | batch_csv | batch_json | ...
     config: dict[str, Any] = Field(default_factory=dict)
+    # OAuth / token credentials — stored encrypted; used by api_pull to obtain Bearer tokens.
+    # grant_type: client_credentials | password | salesforce_jwt
+    auth_config: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
     # links to catalogue.entity; source name is derived from entity.name
     entity_id: str | None = None
@@ -31,6 +34,7 @@ class IntegrationUpdate(BaseModel):
     description: str | None = None
     status: str | None = None  # active | paused
     config: dict[str, Any] | None = None
+    auth_config: dict[str, Any] | None = None
     tags: list[str] | None = None
     entity_id: str | None = None
     cron_schedule: str | None = None
