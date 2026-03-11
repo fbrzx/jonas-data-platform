@@ -145,6 +145,7 @@ export interface Integration {
   connector_type: string
   status: string
   config?: string
+  auth_config?: string
   target_entity_id?: string | null
   cron_schedule?: string | null
   collection?: string | null
@@ -157,6 +158,7 @@ export interface IntegrationCreate {
   description?: string
   connector_type: 'webhook' | 'batch_csv' | 'batch_json' | 'api_pull'
   config?: Record<string, unknown>
+  auth_config?: Record<string, unknown>
   tags?: string[]
   entity_id?: string
   collection?: string | null
@@ -167,6 +169,7 @@ export interface IntegrationUpdate {
   description?: string
   status?: 'active' | 'paused'
   config?: Record<string, unknown>
+  auth_config?: Record<string, unknown>
   tags?: string[]
   entity_id?: string | null
   cron_schedule?: string | null
